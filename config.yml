@@ -1,0 +1,17 @@
+server:
+  port: 0
+
+postgres:
+  host: ""
+  port: 0
+  user: ""
+  password: ""
+  dbname: ""
+
+jwt:
+  secret: ""
+
+cloudinary:
+  name: ""
+  key: ""
+  secret: ""
