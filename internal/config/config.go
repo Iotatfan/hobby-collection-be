@@ -44,11 +44,6 @@ type RedisConfig struct {
 	Database int
 	Port     int
 }
-
-type RajaOngkiriConfig struct {
-	Key string
-}
-
 type Config struct {
 	Server     ServerConfig
 	Postgres   PostgresConfig
@@ -56,7 +51,6 @@ type Config struct {
 	Cloudinary CloudinaryConfig
 	Gomail     GomailConfig
 	Redis      RedisConfig
-	RajaOngkir RajaOngkiriConfig
 }
 
 func checkConfig(cfg *Config) {
