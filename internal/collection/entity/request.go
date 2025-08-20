@@ -2,13 +2,6 @@ package entity
 
 import "time"
 
-type GetCollectionRequest struct {
-	Scale      Scale
-	RelaseType RelaseType
-	Status     COLLECTION_STATUS
-	Series     Series
-}
-
 type UploadCollectionRequest struct {
 	ID          int
 	Title       string
@@ -18,6 +11,6 @@ type UploadCollectionRequest struct {
 	Series      Series
 	BuiltAt     time.Time
 	Cover       string
-	Pictures    []Pictures
+	Pictures    []Picture
 	Description string
 }

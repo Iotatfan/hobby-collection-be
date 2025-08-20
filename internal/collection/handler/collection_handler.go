@@ -17,7 +17,7 @@ func NewCollectionHandler(s collectionService.CollectionService) CollectiontHand
 	return CollectiontHandler{collectionService: s}
 }
 
-func (h *CollectiontHandler) GetProductByID(c *gin.Context) {
+func (h *CollectiontHandler) GetCollectionByID(c *gin.Context) {
 	inputID := c.Param("id")
 	id, err := strconv.Atoi(inputID)
 	if err != nil {

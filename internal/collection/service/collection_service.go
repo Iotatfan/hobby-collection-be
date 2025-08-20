@@ -28,7 +28,7 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 	result := collectionEntity.CollectionDetailResponse{
 		ID:          collection.ID,
 		Title:       collection.Title,
-		Scale:       collection.Scale,
+		Type:        collection.Type,
 		RelaseType:  collection.RelaseType,
 		Status:      collection.Status,
 		Series:      collection.Series,
