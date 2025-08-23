@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	collectionService "github.com/iotatfan/hobby-collection-be/internal/collection/service"
 	"github.com/iotatfan/hobby-collection-be/internal/helper"
 )
@@ -31,4 +32,19 @@ func (h *CollectiontHandler) GetCollectionByID(c *gin.Context) {
 		return
 	}
 	helper.SuccessResponse(c, collection, http.StatusOK)
+}
+
+func (h *CollectiontHandler) GetCollectionList(c *gin.Context) {
+	filters := entity.CollectionFilter{}
+	err := c.ShouldBindQuery(&filters)
+	if err != nil {
+		helper.ErrorResponse(c, err)
+		return
+	}
+	result, err := h.collectionService.GetCollectionList(filters)
+	if err != nil {
+		helper.ErrorResponse(c, err)
+		return
+	}
+	helper.SuccessResponse(c, result, http.StatusOK)
 }

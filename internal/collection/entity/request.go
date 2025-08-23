@@ -5,7 +5,7 @@ import "time"
 type UploadCollectionRequest struct {
 	ID          int
 	Title       string
-	Scale       Scale
+	Type        CollectionType
 	RelaseType  RelaseType
 	Status      COLLECTION_STATUS
 	Series      Series

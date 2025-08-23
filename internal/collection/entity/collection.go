@@ -23,27 +23,29 @@ type Collection struct {
 	helper.Model `gorm:"embedded"`
 }
 
-type CollectionType struct {
-	ID                 int    `gorm:"primaryKey;column:id" json:"id"`
-	CollectionTypeName string `gorm:"column:name" json:"name"`
-	Scale              Scale  `gorm:"foreignKey:ScaleID" json:"scale"`
-	helper.Model       `gorm:"embedded"`
+type CollectionList struct {
+	Collections []Collection
 }
 
-type GUNPLA_GRADE string
+type CollectionFilter struct {
+	CollectionTypeID int
+	GradeID          int
+}
 
-const (
-	EG = 0
-	HG = 1
-	RG = 2
-	MG = 3
-	PG = 4
-)
+type CollectionType struct {
+	ID                 int    `gorm:"primaryKey;column:id" json:"id"`
+	CollectionTypeName string `gorm:"column:name" json:"name" binding:"required"`
+	Scale              string `gorm:"column:scale" json:"scale" binding:"required"`
+	GradeID            int    `gorm:"column:grade_id"`
+	Grade              Grade  `gorm:"foreignKey:GradeID" json:"grade"`
 
-type Scale struct {
-	ID           int          `gorm:"primaryKey;column:id" json:"id"`
-	Name         string       `gorm:"column:name" json:"name" binding:"required"`
-	Grade        GUNPLA_GRADE `json:"grade"`
+	helper.Model `gorm:"embedded"`
+}
+
+type Grade struct {
+	ID           int    `gorm:"primaryKey;column:id" json:"id"`
+	Name         string `gorm:"column:name" json:"name" binding:"required"`
+	ShortName    string `gorm:"column:short_name" json:"short_name"`
 	helper.Model `gorm:"embedded"`
 }
 

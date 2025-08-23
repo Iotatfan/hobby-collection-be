@@ -7,6 +7,7 @@ import (
 
 type CollectionService interface {
 	GetCollectionByID(id int) (collectionEntity.CollectionDetailResponse, error)
+	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error)
 }
 
 type collectionService struct {
@@ -35,6 +36,32 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 		BuiltAt:     collection.BuiltAt.Local(),
 		Cover:       collection.Cover,
 		Description: collection.Description,
+	}
+
+	return result, nil
+}
+
+func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
+	queryResult, err := s.collectionRepo.GetCollectionList(filters)
+	if err != nil {
+		return collectionEntity.CollectionListResponse{}, err
+	}
+	result := collectionEntity.CollectionListResponse{}
+
+	for _, collection := range queryResult.Collections {
+		newResult := collectionEntity.CollectionDetailResponse{
+			ID:          collection.ID,
+			Title:       collection.Title,
+			Type:        collection.Type,
+			RelaseType:  collection.RelaseType,
+			Status:      collection.Status,
+			Series:      collection.Series,
+			BuiltAt:     collection.BuiltAt.Local(),
+			Cover:       collection.Cover,
+			Description: collection.Description,
+		}
+
+		result.Collections = append(result.Collections, newResult)
 	}
 
 	return result, nil

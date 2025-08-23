@@ -9,6 +9,7 @@ import (
 
 type CollectionRepository interface {
 	GetCollectionByID(id int) (collectionEntity.Collection, error)
+	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionList, error)
 }
 
 type collectionRepository struct {
@@ -33,4 +34,20 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
 	}
 	return collection, nil
+}
+
+func (r *collectionRepository) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionList, error) {
+	collectionList := collectionEntity.CollectionList{}
+	db := r.db.Model(&collectionEntity.Collection{})
+
+	if filters.CollectionTypeID >= 0 || filters.GradeID >= 0 {
+		db.Joins("left join collection_type on collection_type.id = collection.type_id").Where("grade_id = ? ", filters.CollectionTypeID)
+	}
+
+	result := db.Preload("ReleaseType").Preload("Pictures").Find(&collectionList.Collections)
+	if result.Error != nil {
+		return collectionEntity.CollectionList{}, helper.DBError{ErrorMsg: result.Error}
+	}
+
+	return collectionList, nil
 }
