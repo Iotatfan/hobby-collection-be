@@ -6,7 +6,7 @@ type UploadCollectionRequest struct {
 	ID          int
 	Title       string
 	Type        CollectionType
-	RelaseType  RelaseType
+	ReleaseType ReleaseType
 	Status      COLLECTION_STATUS
 	Series      Series
 	BuiltAt     time.Time

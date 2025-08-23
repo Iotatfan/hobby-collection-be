@@ -6,5 +6,6 @@ import (
 )
 
 func SetCollectionRoutes(g *gin.Engine, cH handler.CollectiontHandler) {
-	g.GET("/product/:id", cH.GetCollectionByID)
+	g.GET("/collection/:id", cH.GetCollectionByID)
+	g.GET("/collection", cH.GetCollectionList)
 }

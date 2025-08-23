@@ -1,6 +1,8 @@
 package service
 
 import (
+	"time"
+
 	collectionEntity "github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	collectionRepository "github.com/iotatfan/hobby-collection-be/internal/collection/repository"
 )
@@ -26,14 +28,19 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
+	builtAt := time.Time{}
+	if collection.BuiltAt != nil {
+		builtAt = collection.BuiltAt.Local()
+	}
+
 	result := collectionEntity.CollectionDetailResponse{
 		ID:          collection.ID,
 		Title:       collection.Title,
-		Type:        collection.Type,
-		RelaseType:  collection.RelaseType,
+		Type:        collection.CollectionType,
+		ReleaseType: collection.ReleaseType,
 		Status:      collection.Status,
 		Series:      collection.Series,
-		BuiltAt:     collection.BuiltAt.Local(),
+		BuiltAt:     builtAt,
 		Cover:       collection.Cover,
 		Description: collection.Description,
 	}
@@ -52,8 +59,8 @@ func (s *collectionService) GetCollectionList(filters collectionEntity.Collectio
 		newResult := collectionEntity.CollectionDetailResponse{
 			ID:          collection.ID,
 			Title:       collection.Title,
-			Type:        collection.Type,
-			RelaseType:  collection.RelaseType,
+			Type:        collection.CollectionType,
+			ReleaseType: collection.ReleaseType,
 			Status:      collection.Status,
 			Series:      collection.Series,
 			BuiltAt:     collection.BuiltAt.Local(),

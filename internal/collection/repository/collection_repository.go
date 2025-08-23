@@ -24,7 +24,7 @@ func NewCollectionRepository(db *gorm.DB) CollectionRepository {
 
 func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Collection, error) {
 	collection := collectionEntity.Collection{}
-	err := r.db.Preload("Scale").Preload("ReleaseType").Preload("Pictures").Take(&collection, id).Error
+	err := r.db.Joins("CollectionType").Preload("CollectionType.Grade").Joins("Series").Joins("ReleaseType").Preload("Pictures").Take(&collection, id).Error
 	if err != nil {
 		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
 	}
@@ -41,10 +41,11 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	db := r.db.Model(&collectionEntity.Collection{})
 
 	if filters.CollectionTypeID >= 0 || filters.GradeID >= 0 {
-		db.Joins("left join collection_type on collection_type.id = collection.type_id").Where("grade_id = ? ", filters.CollectionTypeID)
+		// db.Joins("left join collection_types on collection_types.id = collections.type_id").Where("collection_types.grade_id = ? ", filters.CollectionTypeID)
+
 	}
 
-	result := db.Preload("ReleaseType").Preload("Pictures").Find(&collectionList.Collections)
+	result := db.Joins("CollectionType").Preload("CollectionType.Grade").Joins("Series").Joins("ReleaseType").Preload("Pictures").Find(&collectionList.Collections)
 	if result.Error != nil {
 		return collectionEntity.CollectionList{}, helper.DBError{ErrorMsg: result.Error}
 	}
