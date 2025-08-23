@@ -13,7 +13,7 @@ type CollectionDetailResponse struct {
 	Series      Series                 `json:"series"`
 	BuiltAt     time.Time              `json:"built_at"`
 	Cover       string                 `json:"cover"`
-	Pictures    []Picture              `json:"pictures"`
+	Pictures    []string               `json:"pictures"`
 	Description string                 `json:"description"`
 }
 

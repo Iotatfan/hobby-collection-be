@@ -10,6 +10,7 @@ import (
 type CollectionRepository interface {
 	GetCollectionByID(id int) (collectionEntity.Collection, error)
 	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionList, error)
+	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
 }
 
 type collectionRepository struct {
@@ -24,15 +25,11 @@ func NewCollectionRepository(db *gorm.DB) CollectionRepository {
 
 func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Collection, error) {
 	collection := collectionEntity.Collection{}
-	err := r.db.Joins("CollectionType").Preload("CollectionType.Grade").Joins("Series").Joins("ReleaseType").Preload("Pictures").Take(&collection, id).Error
+	err := r.db.Model(&collectionEntity.Collection{}).Joins("CollectionType").Preload("CollectionType.Grade").Joins("Series").Joins("ReleaseType").Preload("Pictures").Find(&collection, id).Error
 	if err != nil {
 		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
 	}
 
-	err = r.db.Model(&collectionEntity.Collection{}).Where("id = ?", collection.ID).Error
-	if err != nil {
-		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
-	}
 	return collection, nil
 }
 
@@ -45,10 +42,19 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 
 	}
 
-	result := db.Joins("CollectionType").Preload("CollectionType.Grade").Joins("Series").Joins("ReleaseType").Preload("Pictures").Find(&collectionList.Collections)
+	result := db.Joins("CollectionType").Preload("CollectionType.Grade").Joins("Series").Joins("ReleaseType").Find(&collectionList.Collections)
 	if result.Error != nil {
 		return collectionEntity.CollectionList{}, helper.DBError{ErrorMsg: result.Error}
 	}
 
 	return collectionList, nil
+}
+
+func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error) {
+	pictures := []collectionEntity.Picture{}
+	err := r.db.Model(&collectionEntity.Picture{}).Where("collection_id = ?", id).Find(&pictures).Error
+	if err != nil {
+		return []collectionEntity.Picture{}, helper.DBError{ErrorMsg: err}
+	}
+	return pictures, nil
 }

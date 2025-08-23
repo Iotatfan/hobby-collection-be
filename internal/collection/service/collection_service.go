@@ -28,7 +28,12 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
-	return mapCollectionReponse(collection), nil
+	pictures, err := s.collectionRepo.GetPicturesByCollectionID(id)
+	if err != nil {
+		return mapCollectionReponse(collection, nil), nil
+	}
+
+	return mapCollectionReponse(collection, pictures), nil
 }
 
 func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
@@ -39,13 +44,13 @@ func (s *collectionService) GetCollectionList(filters collectionEntity.Collectio
 	result := collectionEntity.CollectionListResponse{}
 
 	for _, collection := range queryResult.Collections {
-		result.Collections = append(result.Collections, mapCollectionReponse(collection))
+		result.Collections = append(result.Collections, mapCollectionReponse(collection, nil))
 	}
 
 	return result, nil
 }
 
-func mapCollectionReponse(collection collectionEntity.Collection) collectionEntity.CollectionDetailResponse {
+func mapCollectionReponse(collection collectionEntity.Collection, pictures []collectionEntity.Picture) collectionEntity.CollectionDetailResponse {
 
 	builtAt := time.Time{}
 	if collection.BuiltAt != nil {
@@ -59,6 +64,11 @@ func mapCollectionReponse(collection collectionEntity.Collection) collectionEnti
 		Grade:              collection.CollectionType.Grade,
 	}
 
+	var picturesResp []string
+	for _, picture := range pictures {
+		picturesResp = append(picturesResp, picture.Url)
+	}
+
 	result := collectionEntity.CollectionDetailResponse{
 		ID:          collection.ID,
 		Title:       collection.Title,
@@ -69,6 +79,7 @@ func mapCollectionReponse(collection collectionEntity.Collection) collectionEnti
 		BuiltAt:     builtAt,
 		Cover:       collection.Cover,
 		Description: collection.Description,
+		Pictures:    picturesResp,
 	}
 
 	return result
