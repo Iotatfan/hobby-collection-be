@@ -28,6 +28,25 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
+	return mapCollectionReponse(collection), nil
+}
+
+func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
+	queryResult, err := s.collectionRepo.GetCollectionList(filters)
+	if err != nil {
+		return collectionEntity.CollectionListResponse{}, err
+	}
+	result := collectionEntity.CollectionListResponse{}
+
+	for _, collection := range queryResult.Collections {
+		result.Collections = append(result.Collections, mapCollectionReponse(collection))
+	}
+
+	return result, nil
+}
+
+func mapCollectionReponse(collection collectionEntity.Collection) collectionEntity.CollectionDetailResponse {
+
 	builtAt := time.Time{}
 	if collection.BuiltAt != nil {
 		builtAt = collection.BuiltAt.Local()
@@ -52,39 +71,5 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 		Description: collection.Description,
 	}
 
-	return result, nil
-}
-
-func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
-	queryResult, err := s.collectionRepo.GetCollectionList(filters)
-	if err != nil {
-		return collectionEntity.CollectionListResponse{}, err
-	}
-	result := collectionEntity.CollectionListResponse{}
-
-	for _, collection := range queryResult.Collections {
-
-		collectionTypeResp := collectionEntity.CollectionTypeResponse{
-			ID:                 collection.CollectionType.ID,
-			CollectionTypeName: collection.CollectionType.CollectionTypeName,
-			Scale:              collection.CollectionType.Scale,
-			Grade:              collection.CollectionType.Grade,
-		}
-
-		newResult := collectionEntity.CollectionDetailResponse{
-			ID:          collection.ID,
-			Title:       collection.Title,
-			Type:        collectionTypeResp,
-			ReleaseType: collection.ReleaseType,
-			Status:      collection.Status,
-			Series:      collection.Series,
-			BuiltAt:     collection.BuiltAt.Local(),
-			Cover:       collection.Cover,
-			Description: collection.Description,
-		}
-
-		result.Collections = append(result.Collections, newResult)
-	}
-
-	return result, nil
+	return result
 }
