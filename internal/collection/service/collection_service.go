@@ -33,10 +33,17 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 		builtAt = collection.BuiltAt.Local()
 	}
 
+	collectionTypeResp := collectionEntity.CollectionTypeResponse{
+		ID:                 collection.CollectionType.ID,
+		CollectionTypeName: collection.CollectionType.CollectionTypeName,
+		Scale:              collection.CollectionType.Scale,
+		Grade:              collection.CollectionType.Grade,
+	}
+
 	result := collectionEntity.CollectionDetailResponse{
 		ID:          collection.ID,
 		Title:       collection.Title,
-		Type:        collection.CollectionType,
+		Type:        collectionTypeResp,
 		ReleaseType: collection.ReleaseType,
 		Status:      collection.Status,
 		Series:      collection.Series,
@@ -56,10 +63,18 @@ func (s *collectionService) GetCollectionList(filters collectionEntity.Collectio
 	result := collectionEntity.CollectionListResponse{}
 
 	for _, collection := range queryResult.Collections {
+
+		collectionTypeResp := collectionEntity.CollectionTypeResponse{
+			ID:                 collection.CollectionType.ID,
+			CollectionTypeName: collection.CollectionType.CollectionTypeName,
+			Scale:              collection.CollectionType.Scale,
+			Grade:              collection.CollectionType.Grade,
+		}
+
 		newResult := collectionEntity.CollectionDetailResponse{
 			ID:          collection.ID,
 			Title:       collection.Title,
-			Type:        collection.CollectionType,
+			Type:        collectionTypeResp,
 			ReleaseType: collection.ReleaseType,
 			Status:      collection.Status,
 			Series:      collection.Series,
