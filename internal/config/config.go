@@ -55,7 +55,7 @@ func InitConfig() *Config {
 	// viper.SetConfigType("yml")
 	// viper.AddConfigPath(".")
 
-	viper.SetConfigFile("ENV")
+	viper.SetConfigFile(".env")
 	viper.ReadInConfig()
 	viper.AutomaticEnv()
 
@@ -74,6 +74,7 @@ func InitConfig() *Config {
 	// 	panic(fmt.Errorf("fatal error config file: %w", err))
 	// }
 
+	cfg.Server.Port, _ = strconv.Atoi(viper.GetString("PORT"))
 	cfg.Postgres.Host = viper.GetString("DB_HOST")
 	cfg.Postgres.Port, _ = strconv.Atoi(viper.GetString("DB_PORT"))
 	cfg.Postgres.User = viper.GetString("DB_USER")
