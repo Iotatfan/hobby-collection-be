@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/spf13/viper"
@@ -57,12 +56,16 @@ func InitConfig() *Config {
 	// viper.AddConfigPath(".")
 
 	viper.SetConfigFile("ENV")
+	viper.ReadInConfig()
 	viper.AutomaticEnv()
 
-	err := viper.ReadInConfig()
-	if err != nil {
-		panic(fmt.Errorf("fatal error config file: %w", err))
-	}
+	// viper.SetConfigFile(".env")
+	// viper.AutomaticEnv()
+
+	// err := viper.ReadInConfig()
+	// if err != nil {
+	// 	panic(fmt.Errorf("fatal error config file: %w", err))
+	// }
 
 	var cfg Config
 
