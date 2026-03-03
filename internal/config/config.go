@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/spf13/viper"
 )
@@ -30,14 +31,6 @@ type CloudinaryConfig struct {
 	Secret string
 }
 
-type GomailConfig struct {
-	Name     string
-	Host     string
-	Port     int
-	Email    string
-	Password string
-}
-
 type RedisConfig struct {
 	Host     string
 	Password string
@@ -49,7 +42,6 @@ type Config struct {
 	Postgres   PostgresConfig
 	JWT        JWTConfig
 	Cloudinary CloudinaryConfig
-	Gomail     GomailConfig
 	Redis      RedisConfig
 }
 
@@ -60,9 +52,12 @@ func checkConfig(cfg *Config) {
 }
 
 func InitConfig() *Config {
-	viper.SetConfigName("config")
-	viper.SetConfigType("yml")
-	viper.AddConfigPath(".")
+	// viper.SetConfigName("config")
+	// viper.SetConfigType("yml")
+	// viper.AddConfigPath(".")
+
+	viper.SetConfigFile("ENV")
+	viper.AutomaticEnv()
 
 	err := viper.ReadInConfig()
 	if err != nil {
@@ -71,10 +66,16 @@ func InitConfig() *Config {
 
 	var cfg Config
 
-	err = viper.Unmarshal(&cfg)
-	if err != nil {
-		panic(fmt.Errorf("fatal error config file: %w", err))
-	}
+	// err = viper.Unmarshal(&cfg)
+	// if err != nil {
+	// 	panic(fmt.Errorf("fatal error config file: %w", err))
+	// }
+
+	cfg.Postgres.Host = viper.GetString("DB_HOST")
+	cfg.Postgres.Port, _ = strconv.Atoi(viper.GetString("DB_PORT"))
+	cfg.Postgres.User = viper.GetString("DB_USER")
+	cfg.Postgres.Password = viper.GetString("DB_PASSWORD")
+	cfg.Postgres.DBName = viper.GetString("DB_NAME")
 
 	checkConfig(&cfg)
 	return &cfg
