@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	"github.com/iotatfan/hobby-collection-be/internal/config"
 	"github.com/iotatfan/hobby-collection-be/internal/handle"
 	"github.com/iotatfan/hobby-collection-be/internal/middleware"
@@ -19,10 +18,10 @@ import (
 	"github.com/iotatfan/hobby-collection-be/pkg/database/gorm"
 )
 
-func handleRequests(cfg *config.Config) {
-	db := gorm.NewDB(&cfg.Postgres)
+func handleRequests() {
+	db := gorm.NewDB(&config.GetConfig().Postgres)
 	// cld := cloud.NewCld(&cfg.Cloudinary)
-	db.AutoMigrate(&entity.Collection{}, &entity.Grade{}, &entity.ReleaseType{}, &entity.Series{}, &entity.Picture{})
+	// db.AutoMigrate(&entity.Collection{}, &entity.Grade{}, &entity.ReleaseType{}, &entity.Series{}, &entity.Picture{})
 
 	g := gin.Default()
 	g.Use(middleware.CORS())
@@ -31,13 +30,13 @@ func handleRequests(cfg *config.Config) {
 	handle.SetupCollection(g, db)
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
+		Addr:    fmt.Sprintf(":%d", config.GetConfig().Server.Port),
 		Handler: g,
 	}
 
 	go func() {
 		// service connections
-		log.Printf("listening at port %d", cfg.Server.Port)
+		log.Printf("listening at port %d", config.AppConfig.Server.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("listen: %s\n", err)
 		}
@@ -66,10 +65,10 @@ func handleRequests(cfg *config.Config) {
 }
 
 func main() {
-	cfg, err := config.InitConfig()
+	err := config.InitConfig()
 	if err != nil {
 		fmt.Println("Config Error: ", err.Error())
 	}
 
-	handleRequests(cfg)
+	handleRequests()
 }
