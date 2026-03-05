@@ -1,7 +1,7 @@
 package config
 
 import (
-	"strconv"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -50,37 +50,24 @@ func checkConfig(cfg *Config) {
 	}
 }
 
-func InitConfig() *Config {
-	// viper.SetConfigName("config")
-	// viper.SetConfigType("yml")
-	// viper.AddConfigPath(".")
+func InitConfig() (*Config, error) {
+	viper.SetConfigName("config")
+	viper.SetConfigType("yml")
+	viper.AddConfigPath(".")
 
-	viper.SetConfigFile(".env")
-	viper.ReadInConfig()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
-	// viper.SetConfigFile(".env")
-	// viper.AutomaticEnv()
-
-	// err := viper.ReadInConfig()
-	// if err != nil {
-	// 	panic(fmt.Errorf("fatal error config file: %w", err))
-	// }
+	err := viper.ReadInConfig()
+	if err != nil {
+		return nil, err
+	}
 
 	var cfg Config
+	err = viper.Unmarshal(&cfg)
+	if err != nil {
+		return nil, err
+	}
 
-	// err = viper.Unmarshal(&cfg)
-	// if err != nil {
-	// 	panic(fmt.Errorf("fatal error config file: %w", err))
-	// }
-
-	cfg.Server.Port, _ = strconv.Atoi(viper.GetString("PORT"))
-	cfg.Postgres.Host = viper.GetString("DB_HOST")
-	cfg.Postgres.Port, _ = strconv.Atoi(viper.GetString("DB_PORT"))
-	cfg.Postgres.User = viper.GetString("DB_USER")
-	cfg.Postgres.Password = viper.GetString("DB_PASSWORD")
-	cfg.Postgres.DBName = viper.GetString("DB_NAME")
-
-	checkConfig(&cfg)
-	return &cfg
+	return &cfg, nil
 }

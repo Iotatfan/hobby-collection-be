@@ -1,12 +1,12 @@
 server:
-  port: 0
+  port: 8080
 
 postgres:
-  host: ""
-  port: 0
-  user: ""
+  host: "localhost"
+  port: 5432
+  user: "postgres"
   password: ""
-  dbname: ""
+  dbname: "dbtest"
 
 jwt:
   secret: ""

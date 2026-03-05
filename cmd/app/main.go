@@ -66,7 +66,10 @@ func handleRequests(cfg *config.Config) {
 }
 
 func main() {
-	cfg := config.InitConfig()
-	fmt.Println(cfg)
+	cfg, err := config.InitConfig()
+	if err != nil {
+		fmt.Println("Config Error: ", err.Error())
+	}
+
 	handleRequests(cfg)
 }
