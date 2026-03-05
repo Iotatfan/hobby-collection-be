@@ -11,6 +11,7 @@ type CollectionRepository interface {
 	GetCollectionByID(id int) (collectionEntity.Collection, error)
 	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionList, error)
 	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
+	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
 }
 
 type collectionRepository struct {
@@ -57,4 +58,57 @@ func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEn
 		return []collectionEntity.Picture{}, helper.DBError{ErrorMsg: err}
 	}
 	return pictures, nil
+}
+
+func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error) {
+	collection := collectionEntity.Collection{
+		TypeID:         payload.Type.ID,
+		Title:          payload.Title,
+		ReleaseTypeID:  payload.ReleaseType.ID,
+		Status:         payload.Status,
+		SeriesID:       payload.Series.ID,
+		Cover:          payload.Cover,
+		Description:    payload.Description,
+		CollectionType: payload.Type,
+		ReleaseType:    payload.ReleaseType,
+		Series:         payload.Series,
+	}
+
+	if !payload.BuiltAt.IsZero() {
+		builtAt := payload.BuiltAt
+		collection.BuiltAt = &builtAt
+	}
+
+	pictures := make([]collectionEntity.Picture, 0, len(payload.Pictures))
+	for _, picture := range payload.Pictures {
+		if picture.Url == "" {
+			continue
+		}
+		pictures = append(pictures, collectionEntity.Picture{Url: picture.Url})
+	}
+
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&collection).Error; err != nil {
+			return err
+		}
+
+		if len(pictures) == 0 {
+			return nil
+		}
+
+		for i := range pictures {
+			pictures[i].CollectionID = collection.ID
+		}
+
+		if err := tx.Create(&pictures).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
+	}
+
+	return collection, nil
 }

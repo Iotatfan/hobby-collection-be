@@ -10,6 +10,7 @@ import (
 type CollectionService interface {
 	GetCollectionByID(id int) (collectionEntity.CollectionDetailResponse, error)
 	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error)
+	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 }
 
 type collectionService struct {
@@ -48,6 +49,20 @@ func (s *collectionService) GetCollectionList(filters collectionEntity.Collectio
 	}
 
 	return result, nil
+}
+
+func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
+	collection, err := s.collectionRepo.UploadCollection(payload)
+	if err != nil {
+		return collectionEntity.CollectionDetailResponse{}, err
+	}
+
+	pictures, err := s.collectionRepo.GetPicturesByCollectionID(collection.ID)
+	if err != nil {
+		return mapCollectionReponse(collection, nil), nil
+	}
+
+	return mapCollectionReponse(collection, pictures), nil
 }
 
 func mapCollectionReponse(collection collectionEntity.Collection, pictures []collectionEntity.Picture) collectionEntity.CollectionDetailResponse {

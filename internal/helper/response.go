@@ -16,7 +16,10 @@ type JSONResponse struct {
 
 // SuccessResponse is to return success JSON response
 func SuccessResponse(c *gin.Context, data any, statusCode int, message ...string) {
-	code := http.StatusOK
+	code := statusCode
+	if code == 0 {
+		code = http.StatusOK
+	}
 	response := "success"
 	if len(message) > 0 {
 		response = message[0]

@@ -48,3 +48,19 @@ func (h *CollectiontHandler) GetCollectionList(c *gin.Context) {
 	}
 	helper.SuccessResponse(c, result, http.StatusOK)
 }
+
+func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
+	req := entity.UploadCollectionRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helper.ErrorResponse(c, err)
+		return
+	}
+
+	result, err := h.collectionService.UploadCollection(req)
+	if err != nil {
+		helper.ErrorResponse(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, result, http.StatusCreated)
+}
