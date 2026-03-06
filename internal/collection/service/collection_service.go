@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
+	"log"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -38,7 +41,7 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 
 	pictures, err := s.collectionRepo.GetPicturesByCollectionID(id)
 	if err != nil {
-		return mapCollectionReponse(collection, nil), nil
+		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
 	return mapCollectionReponse(collection, pictures), nil
@@ -59,46 +62,70 @@ func (s *collectionService) GetCollectionList(filters collectionEntity.Collectio
 }
 
 func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
-	if payload.Cover != "" {
+	log.Printf("[upload] start title=%q type_id=%d release_type_id=%d series_id=%d pictures=%d", payload.Title, payload.TypeID, payload.ReleaseTypeID, payload.SeriesID, len(payload.Pictures))
+
+	if payload.Cover != nil {
 		coverURL, err := s.uploadImage(payload.Cover)
 		if err != nil {
+			log.Printf("[upload] cover upload failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
 		}
-		payload.Cover = coverURL
+		payload.CoverURL = coverURL
+		log.Printf("[upload] cover uploaded url=%s", payload.CoverURL)
 	}
 
 	for i := range payload.Pictures {
-		if payload.Pictures[i].Url == "" {
+		if payload.Pictures[i] == nil {
 			continue
 		}
-		pictureURL, err := s.uploadImage(payload.Pictures[i].Url)
+		pictureURL, err := s.uploadImage(payload.Pictures[i])
 		if err != nil {
+			log.Printf("[upload] picture[%d] upload failed: %v", i, err)
 			return collectionEntity.CollectionDetailResponse{}, err
 		}
-		payload.Pictures[i].Url = pictureURL
+		payload.PictureURLs = append(payload.PictureURLs, pictureURL)
+		log.Printf("[upload] picture[%d] uploaded url=%s", i, pictureURL)
 	}
 
+	log.Printf("[upload] saving to db cover_url=%s picture_urls=%d", payload.CoverURL, len(payload.PictureURLs))
 	collection, err := s.collectionRepo.UploadCollection(payload)
+	if err != nil {
+		log.Printf("[upload] db save failed: %v", err)
+		return collectionEntity.CollectionDetailResponse{}, err
+	}
+	log.Printf("[upload] db save success collection_id=%d", collection.ID)
+
+	collection, err = s.collectionRepo.GetCollectionByID(collection.ID)
 	if err != nil {
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
 	pictures, err := s.collectionRepo.GetPicturesByCollectionID(collection.ID)
 	if err != nil {
-		return mapCollectionReponse(collection, nil), nil
+		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
 	return mapCollectionReponse(collection, pictures), nil
 }
 
-func (s *collectionService) uploadImage(file string) (string, error) {
+func (s *collectionService) uploadImage(fileHeader *multipart.FileHeader) (string, error) {
 	if s.cld == nil {
 		return "", helper.ServiceError{ErrorMsg: "cloudinary client is not configured", Code: http.StatusInternalServerError}
 	}
+	log.Printf("[upload] uploading file name=%q size=%d", fileHeader.Filename, fileHeader.Size)
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return "", helper.ServiceError{ErrorMsg: err.Error(), Code: http.StatusBadRequest}
+	}
+	defer file.Close()
 
 	result, err := s.cld.Upload.Upload(context.Background(), file, uploader.UploadParams{})
 	if err != nil {
 		return "", helper.ServiceError{ErrorMsg: err.Error(), Code: http.StatusInternalServerError}
+	}
+	if result.SecureURL == "" {
+		return "", helper.ServiceError{ErrorMsg: errors.New("cloudinary returned empty secure url").Error(), Code: http.StatusInternalServerError}
 	}
 
 	return result.SecureURL, nil

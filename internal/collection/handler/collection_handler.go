@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -51,8 +52,32 @@ func (h *CollectiontHandler) GetCollectionList(c *gin.Context) {
 
 func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 	req := entity.UploadCollectionRequest{}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		helper.ErrorResponse(c, err)
+		return
+	}
+
+	cover, err := c.FormFile("cover")
+	if err == nil {
+		req.Cover = cover
+	}
+
+	form, err := c.MultipartForm()
+	if err == nil && form != nil {
+		if pictures, ok := form.File["pictures"]; ok && len(pictures) > 0 {
+			req.Pictures = pictures
+		}
+		if pictures, ok := form.File["pictures[]"]; ok && len(pictures) > 0 {
+			req.Pictures = append(req.Pictures, pictures...)
+		}
+	}
+
+	if req.Cover == nil {
+		helper.ErrorResponse(c, helper.ValError{ErrorMsg: errors.New("the field Cover is required")})
+		return
+	}
+	if len(req.Pictures) == 0 {
+		helper.ErrorResponse(c, helper.ValError{ErrorMsg: errors.New("the field Pictures is required")})
 		return
 	}
 

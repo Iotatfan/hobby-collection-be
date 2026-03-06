@@ -62,16 +62,13 @@ func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEn
 
 func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error) {
 	collection := collectionEntity.Collection{
-		TypeID:         payload.Type.ID,
-		Title:          payload.Title,
-		ReleaseTypeID:  payload.ReleaseType.ID,
-		Status:         payload.Status,
-		SeriesID:       payload.Series.ID,
-		Cover:          payload.Cover,
-		Description:    payload.Description,
-		CollectionType: payload.Type,
-		ReleaseType:    payload.ReleaseType,
-		Series:         payload.Series,
+		TypeID:        payload.TypeID,
+		Title:         payload.Title,
+		ReleaseTypeID: payload.ReleaseTypeID,
+		Status:        payload.Status,
+		SeriesID:      payload.SeriesID,
+		Cover:         payload.CoverURL,
+		Description:   payload.Description,
 	}
 
 	if !payload.BuiltAt.IsZero() {
@@ -79,12 +76,12 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 		collection.BuiltAt = &builtAt
 	}
 
-	pictures := make([]collectionEntity.Picture, 0, len(payload.Pictures))
-	for _, picture := range payload.Pictures {
-		if picture.Url == "" {
+	pictures := make([]collectionEntity.Picture, 0, len(payload.PictureURLs))
+	for _, pictureURL := range payload.PictureURLs {
+		if pictureURL == "" {
 			continue
 		}
-		pictures = append(pictures, collectionEntity.Picture{Url: picture.Url})
+		pictures = append(pictures, collectionEntity.Picture{Url: pictureURL})
 	}
 
 	err := r.db.Transaction(func(tx *gorm.DB) error {
