@@ -1,10 +1,15 @@
 package service
 
 import (
+	"context"
+	"net/http"
 	"time"
 
+	"github.com/cloudinary/cloudinary-go/v2"
+	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	collectionEntity "github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	collectionRepository "github.com/iotatfan/hobby-collection-be/internal/collection/repository"
+	"github.com/iotatfan/hobby-collection-be/internal/helper"
 )
 
 type CollectionService interface {
@@ -15,11 +20,13 @@ type CollectionService interface {
 
 type collectionService struct {
 	collectionRepo collectionRepository.CollectionRepository
+	cld            *cloudinary.Cloudinary
 }
 
-func NewCollectionService(collectionRepo collectionRepository.CollectionRepository) CollectionService {
+func NewCollectionService(collectionRepo collectionRepository.CollectionRepository, cld *cloudinary.Cloudinary) CollectionService {
 	return &collectionService{
 		collectionRepo: collectionRepo,
+		cld:            cld,
 	}
 }
 
@@ -52,6 +59,25 @@ func (s *collectionService) GetCollectionList(filters collectionEntity.Collectio
 }
 
 func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
+	if payload.Cover != "" {
+		coverURL, err := s.uploadImage(payload.Cover)
+		if err != nil {
+			return collectionEntity.CollectionDetailResponse{}, err
+		}
+		payload.Cover = coverURL
+	}
+
+	for i := range payload.Pictures {
+		if payload.Pictures[i].Url == "" {
+			continue
+		}
+		pictureURL, err := s.uploadImage(payload.Pictures[i].Url)
+		if err != nil {
+			return collectionEntity.CollectionDetailResponse{}, err
+		}
+		payload.Pictures[i].Url = pictureURL
+	}
+
 	collection, err := s.collectionRepo.UploadCollection(payload)
 	if err != nil {
 		return collectionEntity.CollectionDetailResponse{}, err
@@ -63,6 +89,19 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 	}
 
 	return mapCollectionReponse(collection, pictures), nil
+}
+
+func (s *collectionService) uploadImage(file string) (string, error) {
+	if s.cld == nil {
+		return "", helper.ServiceError{ErrorMsg: "cloudinary client is not configured", Code: http.StatusInternalServerError}
+	}
+
+	result, err := s.cld.Upload.Upload(context.Background(), file, uploader.UploadParams{})
+	if err != nil {
+		return "", helper.ServiceError{ErrorMsg: err.Error(), Code: http.StatusInternalServerError}
+	}
+
+	return result.SecureURL, nil
 }
 
 func mapCollectionReponse(collection collectionEntity.Collection, pictures []collectionEntity.Picture) collectionEntity.CollectionDetailResponse {

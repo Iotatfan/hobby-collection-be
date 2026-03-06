@@ -16,18 +16,19 @@ import (
 	"github.com/iotatfan/hobby-collection-be/internal/middleware"
 	"github.com/iotatfan/hobby-collection-be/internal/route"
 	"github.com/iotatfan/hobby-collection-be/pkg/database/gorm"
+	"github.com/iotatfan/hobby-collection-be/pkg/storage/cloud"
 )
 
 func handleRequests() {
 	db := gorm.NewDB(&config.GetConfig().Postgres)
-	// cld := cloud.NewCld(&cfg.Cloudinary)
+	cld := cloud.NewCld(&config.GetConfig().Cloudinary)
 	// db.AutoMigrate(&entity.Collection{}, &entity.Grade{}, &entity.ReleaseType{}, &entity.Series{}, &entity.Picture{})
 
 	g := gin.Default()
 	g.Use(middleware.CORS())
 
 	route.SetDefaultRoute(g)
-	handle.SetupCollection(g, db)
+	handle.SetupCollection(g, db, cld)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.GetConfig().Server.Port),
