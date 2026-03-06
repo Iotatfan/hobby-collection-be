@@ -146,6 +146,7 @@ func mapCollectionReponse(collection collectionEntity.Collection, pictures []col
 	}
 
 	var picturesResp []string
+	picturesResp = append(picturesResp, collection.Cover)
 	for _, picture := range pictures {
 		picturesResp = append(picturesResp, picture.Url)
 	}
