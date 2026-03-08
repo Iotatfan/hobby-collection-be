@@ -35,7 +35,9 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		Joins("Series").
 		Joins("ReleaseType").
 		Joins("Manufacturer").
-		Preload("Pictures").
+		Preload("Pictures", func(db *gorm.DB) *gorm.DB {
+			return db.Order("pictures.created_at DESC").Order("pictures.id DESC")
+		}).
 		First(&collection, id).Error
 	if err != nil {
 		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
