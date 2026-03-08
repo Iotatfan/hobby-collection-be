@@ -18,6 +18,7 @@ import (
 type CollectionService interface {
 	GetCollectionByID(id int) (collectionEntity.CollectionDetailResponse, error)
 	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error)
+	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 }
 
@@ -44,6 +45,10 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 
 func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
 	return s.collectionRepo.GetCollectionList(filters)
+}
+
+func (s *collectionService) GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error) {
+	return s.collectionRepo.GetCollectionDrawer()
 }
 
 func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {

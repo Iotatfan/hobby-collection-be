@@ -12,6 +12,7 @@ import (
 type CollectionRepository interface {
 	GetCollectionByID(id int) (collectionEntity.Collection, error)
 	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error)
+	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
 }
@@ -151,6 +152,37 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	}
 
 	return response, nil
+}
+
+func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error) {
+	drawer := collectionEntity.CollectionDrawerResponse{}
+
+	if err := r.db.Model(&collectionEntity.CollectionType{}).
+		Preload("Grade").
+		Order("name ASC").
+		Find(&drawer.CollectionTypes).Error; err != nil {
+		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
+	}
+
+	if err := r.db.Model(&collectionEntity.ReleaseType{}).
+		Order("name ASC").
+		Find(&drawer.ReleaseTypes).Error; err != nil {
+		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
+	}
+
+	if err := r.db.Model(&collectionEntity.Manufacturer{}).
+		Order("name ASC").
+		Find(&drawer.Manufacturers).Error; err != nil {
+		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
+	}
+
+	if err := r.db.Model(&collectionEntity.Series{}).
+		Order("name ASC").
+		Find(&drawer.Series).Error; err != nil {
+		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
+	}
+
+	return drawer, nil
 }
 
 func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error) {

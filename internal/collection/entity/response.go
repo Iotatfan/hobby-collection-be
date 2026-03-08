@@ -39,3 +39,10 @@ type CollectionTypeResponse struct {
 	Scale              string `json:"scale"`
 	Grade              Grade  `json:"grade"`
 }
+
+type CollectionDrawerResponse struct {
+	CollectionTypes []CollectionType `json:"collection_types"`
+	ReleaseTypes    []ReleaseType    `json:"release_types"`
+	Manufacturers   []Manufacturer   `json:"manufacturers"`
+	Series          []Series         `json:"series"`
+}
