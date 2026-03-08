@@ -62,7 +62,7 @@ func (s *collectionService) GetCollectionList(filters collectionEntity.Collectio
 }
 
 func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
-	log.Printf("[upload] start title=%q type_id=%d release_type_id=%d series_id=%d pictures=%d", payload.Title, payload.TypeID, payload.ReleaseTypeID, payload.SeriesID, len(payload.Pictures))
+	log.Printf("[upload] start title=%q type_id=%d release_type_id=%d manufacturer_id=%d series_id=%d pictures=%d", payload.Title, payload.TypeID, payload.ReleaseTypeID, payload.ManufacturerID, payload.SeriesID, len(payload.Pictures))
 
 	if payload.Cover != nil {
 		coverURL, err := s.uploadImage(payload.Cover)
@@ -120,7 +120,9 @@ func (s *collectionService) uploadImage(fileHeader *multipart.FileHeader) (strin
 	}
 	defer file.Close()
 
-	result, err := s.cld.Upload.Upload(context.Background(), file, uploader.UploadParams{})
+	result, err := s.cld.Upload.Upload(context.Background(), file, uploader.UploadParams{
+		Transformation: "f_auto,q_auto:good,w_800,c_limit",
+	})
 	if err != nil {
 		return "", helper.ServiceError{ErrorMsg: err.Error(), Code: http.StatusInternalServerError}
 	}
@@ -152,16 +154,17 @@ func mapCollectionReponse(collection collectionEntity.Collection, pictures []col
 	}
 
 	result := collectionEntity.CollectionDetailResponse{
-		ID:          collection.ID,
-		Title:       collection.Title,
-		Type:        collectionTypeResp,
-		ReleaseType: collection.ReleaseType,
-		Status:      collection.Status,
-		Series:      collection.Series,
-		BuiltAt:     builtAt,
-		Cover:       collection.Cover,
-		Description: collection.Description,
-		Pictures:    picturesResp,
+		ID:           collection.ID,
+		Title:        collection.Title,
+		Type:         collectionTypeResp,
+		ReleaseType:  collection.ReleaseType,
+		Manufacturer: collection.Manufacturer,
+		Status:       collection.Status,
+		Series:       collection.Series,
+		BuiltAt:      builtAt,
+		Cover:        collection.Cover,
+		Description:  collection.Description,
+		Pictures:     picturesResp,
 	}
 
 	return result

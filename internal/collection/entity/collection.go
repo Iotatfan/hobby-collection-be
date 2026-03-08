@@ -15,6 +15,8 @@ type Collection struct {
 	ReleaseTypeID  int               `gorm:"column:release_type"`
 	ReleaseType    ReleaseType       `gorm:"foreignKey:ReleaseTypeID;default:0"  json:"release_type"`
 	Status         COLLECTION_STATUS `gorm:"column:status" json:"status"`
+	ManufacturerID int               `gorm:"column:manufacturer"`
+	Manufacturer   Manufacturer      `gorm:"foreignKey:ManufacturerID;default:0"  json:"manufacturer"`
 	SeriesID       int               `gorm:"column:series_id;default:0"`
 	Series         Series            `gorm:"foreignKey:SeriesID" json:"series"`
 	BuiltAt        *time.Time        `gorm:"column:built_at" json:"built_at"`
@@ -58,6 +60,12 @@ type Picture struct {
 	CollectionID int    `gorm:"column:collection_id" json:"collection_id" binding:"required"`
 	Url          string `gorm:"column:url" json:"url" binding:"required"`
 	helper.Model `gorm:"embedded"`
+}
+
+type Manufacturer struct {
+	ID               int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
+	ManufacturerName string `gorm:"column:name" json:"name" binding:"required"`
+	helper.Model     `gorm:"embedded"`
 }
 
 // Non Table

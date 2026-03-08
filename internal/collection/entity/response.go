@@ -5,16 +5,17 @@ import (
 )
 
 type CollectionDetailResponse struct {
-	ID          int                    `json:"id"`
-	Title       string                 `json:"title"`
-	Type        CollectionTypeResponse `json:"type"`
-	ReleaseType ReleaseType            `json:"release_type"`
-	Status      COLLECTION_STATUS      `json:"status"`
-	Series      Series                 `json:"series"`
-	BuiltAt     time.Time              `json:"built_at"`
-	Cover       string                 `json:"cover"`
-	Pictures    []string               `json:"pictures"`
-	Description string                 `json:"description"`
+	ID           int                    `json:"id"`
+	Title        string                 `json:"title"`
+	Type         CollectionTypeResponse `json:"type"`
+	ReleaseType  ReleaseType            `json:"release_type"`
+	Manufacturer Manufacturer           `json:"manufacturer"`
+	Status       COLLECTION_STATUS      `json:"status"`
+	Series       Series                 `json:"series"`
+	BuiltAt      time.Time              `json:"built_at"`
+	Cover        string                 `json:"cover"`
+	Pictures     []string               `json:"pictures"`
+	Description  string                 `json:"description"`
 }
 
 type CollectionListResponse struct {

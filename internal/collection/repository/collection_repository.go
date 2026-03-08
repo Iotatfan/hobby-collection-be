@@ -26,7 +26,14 @@ func NewCollectionRepository(db *gorm.DB) CollectionRepository {
 
 func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Collection, error) {
 	collection := collectionEntity.Collection{}
-	err := r.db.Model(&collectionEntity.Collection{}).Joins("CollectionType").Preload("CollectionType.Grade").Joins("Series").Joins("ReleaseType").Preload("Pictures").Find(&collection, id).Error
+	err := r.db.Model(&collectionEntity.Collection{}).
+		Joins("CollectionType").
+		Preload("CollectionType.Grade").
+		Joins("Series").
+		Joins("ReleaseType").
+		Joins("Manufacturer").
+		Preload("Pictures").
+		Find(&collection, id).Error
 	if err != nil {
 		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
 	}
@@ -43,7 +50,12 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 
 	}
 
-	result := db.Joins("CollectionType").Preload("CollectionType.Grade").Joins("Series").Joins("ReleaseType").Find(&collectionList.Collections)
+	result := db.Joins("CollectionType").
+		Preload("CollectionType.Grade").
+		Joins("Series").
+		Joins("ReleaseType").
+		Joins("Manufacturer").
+		Find(&collectionList.Collections)
 	if result.Error != nil {
 		return collectionEntity.CollectionList{}, helper.DBError{ErrorMsg: result.Error}
 	}
@@ -62,13 +74,14 @@ func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEn
 
 func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error) {
 	collection := collectionEntity.Collection{
-		TypeID:        payload.TypeID,
-		Title:         payload.Title,
-		ReleaseTypeID: payload.ReleaseTypeID,
-		Status:        payload.Status,
-		SeriesID:      payload.SeriesID,
-		Cover:         payload.CoverURL,
-		Description:   payload.Description,
+		TypeID:         payload.TypeID,
+		Title:          payload.Title,
+		ReleaseTypeID:  payload.ReleaseTypeID,
+		ManufacturerID: payload.ManufacturerID,
+		Status:         payload.Status,
+		SeriesID:       payload.SeriesID,
+		Cover:          payload.CoverURL,
+		Description:    payload.Description,
 	}
 
 	if !payload.BuiltAt.IsZero() {

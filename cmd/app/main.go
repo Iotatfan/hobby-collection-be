@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	"github.com/iotatfan/hobby-collection-be/internal/config"
 	"github.com/iotatfan/hobby-collection-be/internal/handle"
 	"github.com/iotatfan/hobby-collection-be/internal/middleware"
@@ -22,7 +23,17 @@ import (
 func handleRequests() {
 	db := gorm.NewDB(&config.GetConfig().Postgres)
 	cld := cloud.NewCld(&config.GetConfig().Cloudinary)
-	// db.AutoMigrate(&entity.Collection{}, &entity.Grade{}, &entity.ReleaseType{}, &entity.Series{}, &entity.Picture{})
+	if err := db.AutoMigrate(
+		&entity.Grade{},
+		&entity.CollectionType{},
+		&entity.ReleaseType{},
+		&entity.Manufacturer{},
+		&entity.Series{},
+		&entity.Collection{},
+		&entity.Picture{},
+	); err != nil {
+		log.Fatalf("auto migrate failed: %v", err)
+	}
 
 	g := gin.Default()
 	g.Use(middleware.CORS())
