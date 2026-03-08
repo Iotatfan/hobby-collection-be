@@ -19,7 +19,18 @@ type CollectionDetailResponse struct {
 }
 
 type CollectionListResponse struct {
-	Collections []CollectionDetailResponse `json:"collections"`
+	Collections []CollectionListItemResponse `json:"collections"`
+}
+
+type CollectionListItemResponse struct {
+	ID          int                    `json:"id"`
+	Title       string                 `json:"title"`
+	Type        CollectionTypeResponse `json:"type"`
+	ReleaseType ReleaseType            `json:"release_type"`
+	Status      COLLECTION_STATUS      `json:"status"`
+	Series      Series                 `json:"series"`
+	BuiltAt     time.Time              `json:"built_at"`
+	Cover       string                 `json:"cover"`
 }
 
 type CollectionTypeResponse struct {

@@ -43,17 +43,7 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 }
 
 func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
-	queryResult, err := s.collectionRepo.GetCollectionList(filters)
-	if err != nil {
-		return collectionEntity.CollectionListResponse{}, err
-	}
-	result := collectionEntity.CollectionListResponse{}
-
-	for _, collection := range queryResult.Collections {
-		result.Collections = append(result.Collections, mapCollectionReponse(collection, nil))
-	}
-
-	return result, nil
+	return s.collectionRepo.GetCollectionList(filters)
 }
 
 func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {

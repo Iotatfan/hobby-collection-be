@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	collectionEntity "github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	"github.com/iotatfan/hobby-collection-be/internal/helper"
 
@@ -9,7 +11,7 @@ import (
 
 type CollectionRepository interface {
 	GetCollectionByID(id int) (collectionEntity.Collection, error)
-	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionList, error)
+	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error)
 	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
 }
@@ -41,15 +43,55 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 	return collection, nil
 }
 
-func (r *collectionRepository) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionList, error) {
-	collectionList := collectionEntity.CollectionList{}
-	db := r.db.Model(&collectionEntity.Collection{})
+type collectionListItemRow struct {
+	ID              int                                `gorm:"column:id"`
+	Title           string                             `gorm:"column:title"`
+	Status          collectionEntity.COLLECTION_STATUS `gorm:"column:status"`
+	BuiltAt         *time.Time                         `gorm:"column:built_at"`
+	Cover           string                             `gorm:"column:cover"`
+	TypeID          int                                `gorm:"column:type_id"`
+	TypeName        string                             `gorm:"column:type_name"`
+	TypeScale       string                             `gorm:"column:type_scale"`
+	GradeID         int                                `gorm:"column:grade_id"`
+	GradeName       string                             `gorm:"column:grade_name"`
+	GradeShortName  string                             `gorm:"column:grade_short_name"`
+	ReleaseTypeID   int                                `gorm:"column:release_type_id"`
+	ReleaseTypeName string                             `gorm:"column:release_type_name"`
+	SeriesID        int                                `gorm:"column:series_id"`
+	SeriesName      string                             `gorm:"column:series_name"`
+}
+
+func (r *collectionRepository) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
+	rows := []collectionListItemRow{}
+	db := r.db.Table("collections c").
+		Select(`
+			c.id,
+			c.title,
+			c.status,
+			c.built_at,
+			c.cover,
+			ct.id as type_id,
+			ct.name as type_name,
+			ct.scale as type_scale,
+			COALESCE(g.id, 0) as grade_id,
+			COALESCE(g.name, '') as grade_name,
+			COALESCE(g.short_name, '') as grade_short_name,
+			COALESCE(rt.id, 0) as release_type_id,
+			COALESCE(rt.name, '') as release_type_name,
+			COALESCE(s.id, 0) as series_id,
+			COALESCE(s.name, '') as series_name
+		`).
+		Joins("JOIN collection_types ct ON ct.id = c.type_id AND ct.deleted_at IS NULL").
+		Joins("LEFT JOIN grades g ON g.id = ct.grade_id AND g.deleted_at IS NULL").
+		Joins("LEFT JOIN release_types rt ON rt.id = c.release_type AND rt.deleted_at IS NULL").
+		Joins("LEFT JOIN series s ON s.id = c.series_id AND s.deleted_at IS NULL").
+		Where("c.deleted_at IS NULL")
 
 	if filters.CollectionTypeID > 0 {
-		db = db.Where("collections.type_id = ?", filters.CollectionTypeID)
+		db = db.Where("c.type_id = ?", filters.CollectionTypeID)
 	}
 	if filters.GradeID > 0 {
-		db = db.Joins("JOIN collection_types ct_filter ON ct_filter.id = collections.type_id").Where("ct_filter.grade_id = ?", filters.GradeID)
+		db = db.Where("ct.grade_id = ?", filters.GradeID)
 	}
 
 	limit := filters.Limit
@@ -64,20 +106,51 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 		offset = 0
 	}
 
-	result := db.Joins("CollectionType").
-		Preload("CollectionType.Grade").
-		Joins("Series").
-		Joins("ReleaseType").
-		Joins("Manufacturer").
-		Order("collections.id DESC").
+	result := db.Order("c.id DESC").
 		Limit(limit).
 		Offset(offset).
-		Find(&collectionList.Collections)
+		Scan(&rows)
 	if result.Error != nil {
-		return collectionEntity.CollectionList{}, helper.DBError{ErrorMsg: result.Error}
+		return collectionEntity.CollectionListResponse{}, helper.DBError{ErrorMsg: result.Error}
 	}
 
-	return collectionList, nil
+	response := collectionEntity.CollectionListResponse{
+		Collections: make([]collectionEntity.CollectionListItemResponse, 0, len(rows)),
+	}
+	for _, row := range rows {
+		builtAt := time.Time{}
+		if row.BuiltAt != nil {
+			builtAt = row.BuiltAt.Local()
+		}
+
+		response.Collections = append(response.Collections, collectionEntity.CollectionListItemResponse{
+			ID:    row.ID,
+			Title: row.Title,
+			Type: collectionEntity.CollectionTypeResponse{
+				ID:                 row.TypeID,
+				CollectionTypeName: row.TypeName,
+				Scale:              row.TypeScale,
+				Grade: collectionEntity.Grade{
+					ID:        row.GradeID,
+					Name:      row.GradeName,
+					ShortName: row.GradeShortName,
+				},
+			},
+			ReleaseType: collectionEntity.ReleaseType{
+				ID:              row.ReleaseTypeID,
+				ReleaseTypeName: row.ReleaseTypeName,
+			},
+			Status: row.Status,
+			Series: collectionEntity.Series{
+				ID:         row.SeriesID,
+				SeriesName: row.SeriesName,
+			},
+			BuiltAt: builtAt,
+			Cover:   row.Cover,
+		})
+	}
+
+	return response, nil
 }
 
 func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error) {
