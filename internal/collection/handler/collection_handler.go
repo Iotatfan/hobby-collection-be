@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/iotatfan/hobby-collection-be/internal/collection/entity"
@@ -97,4 +98,70 @@ func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 	}
 
 	helper.SuccessResponse(c, result, http.StatusCreated)
+}
+
+func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
+	inputID := c.Param("id")
+	id, err := strconv.Atoi(inputID)
+	if err != nil {
+		helper.ErrorResponse(c, err)
+		return
+	}
+
+	req := entity.UpdateCollectionRequest{}
+	if err := c.ShouldBind(&req); err != nil {
+		helper.ErrorResponse(c, err)
+		return
+	}
+
+	cover, err := c.FormFile("cover")
+	if err == nil {
+		req.Cover = cover
+	}
+
+	form, err := c.MultipartForm()
+	if err == nil && form != nil {
+		if pictures, ok := form.File["new_pictures"]; ok && len(pictures) > 0 {
+			req.NewPictures = pictures
+		}
+		if pictures, ok := form.File["new_pictures[]"]; ok && len(pictures) > 0 {
+			req.NewPictures = append(req.NewPictures, pictures...)
+		}
+	}
+
+	existingIDsRaw, hasExistingIDs := c.GetPostFormArray("existing_picture_ids")
+	if !hasExistingIDs {
+		existingIDsRaw, hasExistingIDs = c.GetPostFormArray("existing_picture_ids[]")
+	}
+	if !hasExistingIDs {
+		if raw, exists := c.GetPostForm("existing_picture_ids"); exists {
+			hasExistingIDs = true
+			existingIDsRaw = strings.Split(raw, ",")
+		}
+	}
+
+	if hasExistingIDs {
+		req.ExistingPictureIDsPresent = true
+		req.ExistingPictureIDs = make([]int, 0, len(existingIDsRaw))
+		for _, v := range existingIDsRaw {
+			trimmed := strings.TrimSpace(v)
+			if trimmed == "" {
+				continue
+			}
+			pictureID, parseErr := strconv.Atoi(trimmed)
+			if parseErr != nil {
+				helper.ErrorResponse(c, parseErr)
+				return
+			}
+			req.ExistingPictureIDs = append(req.ExistingPictureIDs, pictureID)
+		}
+	}
+
+	result, err := h.collectionService.UpdateCollection(id, req)
+	if err != nil {
+		helper.ErrorResponse(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, result, http.StatusOK)
 }

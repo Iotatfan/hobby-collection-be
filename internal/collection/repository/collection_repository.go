@@ -15,6 +15,7 @@ type CollectionRepository interface {
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
+	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int) (collectionEntity.Collection, error)
 }
 
 type collectionRepository struct {
@@ -241,6 +242,86 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 		return nil
 	})
 	if err != nil {
+		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
+	}
+
+	return collection, nil
+}
+
+func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int) (collectionEntity.Collection, error) {
+	collection := collectionEntity.Collection{}
+
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&collection, id).Error; err != nil {
+			return err
+		}
+
+		updates := map[string]any{}
+		if payload.Title != nil {
+			updates["title"] = *payload.Title
+		}
+		if payload.TypeID != nil {
+			updates["type_id"] = *payload.TypeID
+		}
+		if payload.ReleaseTypeID != nil {
+			updates["release_type"] = *payload.ReleaseTypeID
+		}
+		if payload.ManufacturerID != nil {
+			updates["manufacturer"] = *payload.ManufacturerID
+		}
+		if payload.Status != nil {
+			updates["status"] = *payload.Status
+		}
+		if payload.SeriesID != nil {
+			updates["series_id"] = *payload.SeriesID
+		}
+		if payload.BuiltAt != nil {
+			updates["built_at"] = *payload.BuiltAt
+		}
+		if payload.Description != nil {
+			updates["description"] = *payload.Description
+		}
+		if payload.CoverURL != "" {
+			updates["cover"] = payload.CoverURL
+		}
+
+		if len(updates) > 0 {
+			if err := tx.Model(&collectionEntity.Collection{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+				return err
+			}
+		}
+
+		if len(deletePictureIDs) > 0 {
+			if err := tx.Where("collection_id = ? AND id IN ?", id, deletePictureIDs).Delete(&collectionEntity.Picture{}).Error; err != nil {
+				return err
+			}
+		}
+
+		if len(payload.NewPictureURLs) > 0 {
+			newPictures := make([]collectionEntity.Picture, 0, len(payload.NewPictureURLs))
+			for _, pictureURL := range payload.NewPictureURLs {
+				if pictureURL == "" {
+					continue
+				}
+				newPictures = append(newPictures, collectionEntity.Picture{
+					CollectionID: id,
+					Url:          pictureURL,
+				})
+			}
+
+			if len(newPictures) > 0 {
+				if err := tx.Create(&newPictures).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		if valErr, ok := err.(helper.ValError); ok {
+			return collectionEntity.Collection{}, valErr
+		}
 		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
 	}
 

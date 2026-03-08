@@ -6,6 +6,9 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/cloudinary/cloudinary-go/v2"
@@ -20,6 +23,7 @@ type CollectionService interface {
 	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
+	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 }
 
 type collectionService struct {
@@ -93,6 +97,78 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 	return mapCollectionReponse(collection, getPictures(collection)), nil
 }
 
+func (s *collectionService) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
+	log.Printf("[update] start collection_id=%d new_pictures=%d keep_picture_ids=%d", id, len(payload.NewPictures), len(payload.ExistingPictureIDs))
+
+	deletePictureIDs := make([]int, 0)
+	deletePicturePublicIDs := make([]string, 0)
+	if payload.ExistingPictureIDsPresent {
+		currentPictures, err := s.collectionRepo.GetPicturesByCollectionID(id)
+		if err != nil {
+			log.Printf("[update] load current pictures failed: %v", err)
+			return collectionEntity.CollectionDetailResponse{}, err
+		}
+
+		currentIDMap := make(map[int]struct{}, len(currentPictures))
+		for _, picture := range currentPictures {
+			currentIDMap[picture.ID] = struct{}{}
+		}
+
+		keepIDMap := make(map[int]struct{}, len(payload.ExistingPictureIDs))
+		for _, pictureID := range payload.ExistingPictureIDs {
+			if _, exists := currentIDMap[pictureID]; !exists {
+				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("one or more existing_picture_ids do not belong to this collection")}
+			}
+			keepIDMap[pictureID] = struct{}{}
+		}
+
+		for _, picture := range currentPictures {
+			if _, keep := keepIDMap[picture.ID]; keep {
+				continue
+			}
+			deletePictureIDs = append(deletePictureIDs, picture.ID)
+			if picture.Url != "" {
+				deletePicturePublicIDs = append(deletePicturePublicIDs, picture.Url)
+			}
+		}
+	}
+
+	if payload.Cover != nil {
+		coverURL, err := s.uploadImage(payload.Cover)
+		if err != nil {
+			log.Printf("[update] cover upload failed: %v", err)
+			return collectionEntity.CollectionDetailResponse{}, err
+		}
+		payload.CoverURL = coverURL
+	}
+
+	for i := range payload.NewPictures {
+		if payload.NewPictures[i] == nil {
+			continue
+		}
+		pictureURL, err := s.uploadImage(payload.NewPictures[i])
+		if err != nil {
+			log.Printf("[update] picture[%d] upload failed: %v", i, err)
+			return collectionEntity.CollectionDetailResponse{}, err
+		}
+		payload.NewPictureURLs = append(payload.NewPictureURLs, pictureURL)
+	}
+
+	if _, err := s.collectionRepo.UpdateCollection(id, payload, deletePictureIDs); err != nil {
+		log.Printf("[update] db update failed: %v", err)
+		return collectionEntity.CollectionDetailResponse{}, err
+	}
+
+	s.deleteCloudinaryByPublicID(deletePicturePublicIDs)
+
+	collection, err := s.collectionRepo.GetCollectionByID(id)
+	if err != nil {
+		return collectionEntity.CollectionDetailResponse{}, err
+	}
+
+	return mapCollectionReponse(collection, getPictures(collection)), nil
+}
+
 func getPictures(collection collectionEntity.Collection) []collectionEntity.Picture {
 	if collection.Pictures == nil {
 		return nil
@@ -122,7 +198,88 @@ func (s *collectionService) uploadImage(fileHeader *multipart.FileHeader) (strin
 		return "", helper.ServiceError{ErrorMsg: errors.New("cloudinary returned empty secure url").Error(), Code: http.StatusInternalServerError}
 	}
 
-	return result.SecureURL, nil
+	cachePath, err := toCloudinaryCachePath(result.SecureURL)
+	if err != nil {
+		return "", helper.ServiceError{ErrorMsg: err.Error(), Code: http.StatusInternalServerError}
+	}
+
+	return cachePath, nil
+}
+
+func (s *collectionService) deleteCloudinaryByPublicID(publicIDs []string) {
+	if s.cld == nil || len(publicIDs) == 0 {
+		return
+	}
+
+	for _, storedValue := range publicIDs {
+		if storedValue == "" {
+			continue
+		}
+		publicID := cachePathToPublicID(storedValue)
+		if publicID == "" {
+			log.Printf("[cloudinary] skip delete: invalid stored value=%s", storedValue)
+			continue
+		}
+		if _, err := s.cld.Upload.Destroy(context.Background(), uploader.DestroyParams{PublicID: publicID}); err != nil {
+			log.Printf("[cloudinary] failed to delete public_id=%s: %v", publicID, err)
+		}
+	}
+}
+
+var cloudinaryVersionSegment = regexp.MustCompile(`^v\d+$`)
+
+func toCloudinaryCachePath(secureURL string) (string, error) {
+	parsedURL, err := url.Parse(secureURL)
+	if err != nil {
+		return "", errors.New("failed to parse cloudinary secure url")
+	}
+
+	path := parsedURL.Path
+	uploadMarker := "/upload/"
+	uploadIndex := strings.Index(path, uploadMarker)
+	if uploadIndex < 0 {
+		return "", errors.New("cloudinary secure url format is invalid")
+	}
+
+	tail := path[uploadIndex+len(uploadMarker):]
+	segments := strings.Split(tail, "/")
+	versionIndex := -1
+	for i, segment := range segments {
+		if cloudinaryVersionSegment.MatchString(segment) {
+			versionIndex = i
+			break
+		}
+	}
+	if versionIndex < 0 || versionIndex >= len(segments)-1 {
+		return "", errors.New("cloudinary version/public id is missing")
+	}
+
+	publicIDSegments := append([]string{}, segments[versionIndex+1:]...)
+	last := publicIDSegments[len(publicIDSegments)-1]
+	if dotIndex := strings.LastIndex(last, "."); dotIndex > 0 {
+		last = last[:dotIndex]
+	}
+	if last == "" {
+		return "", errors.New("cloudinary public id is invalid")
+	}
+	publicIDSegments[len(publicIDSegments)-1] = last
+
+	return "/" + segments[versionIndex] + "/" + strings.Join(publicIDSegments, "/"), nil
+}
+
+func cachePathToPublicID(storedValue string) string {
+	trimmed := strings.TrimSpace(storedValue)
+	if trimmed == "" {
+		return ""
+	}
+
+	trimmed = strings.TrimPrefix(trimmed, "/")
+	segments := strings.Split(trimmed, "/")
+	if len(segments) >= 2 && cloudinaryVersionSegment.MatchString(segments[0]) {
+		return strings.Join(segments[1:], "/")
+	}
+
+	return strings.TrimPrefix(trimmed, "/")
 }
 
 func mapCollectionReponse(collection collectionEntity.Collection, pictures []collectionEntity.Picture) collectionEntity.CollectionDetailResponse {
