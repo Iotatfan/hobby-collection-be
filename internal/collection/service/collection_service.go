@@ -39,12 +39,7 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
-	pictures, err := s.collectionRepo.GetPicturesByCollectionID(id)
-	if err != nil {
-		return collectionEntity.CollectionDetailResponse{}, err
-	}
-
-	return mapCollectionReponse(collection, pictures), nil
+	return mapCollectionReponse(collection, getPictures(collection)), nil
 }
 
 func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
@@ -100,12 +95,14 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
-	pictures, err := s.collectionRepo.GetPicturesByCollectionID(collection.ID)
-	if err != nil {
-		return collectionEntity.CollectionDetailResponse{}, err
-	}
+	return mapCollectionReponse(collection, getPictures(collection)), nil
+}
 
-	return mapCollectionReponse(collection, pictures), nil
+func getPictures(collection collectionEntity.Collection) []collectionEntity.Picture {
+	if collection.Pictures == nil {
+		return nil
+	}
+	return *collection.Pictures
 }
 
 func (s *collectionService) uploadImage(fileHeader *multipart.FileHeader) (string, error) {

@@ -33,7 +33,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		Joins("ReleaseType").
 		Joins("Manufacturer").
 		Preload("Pictures").
-		Find(&collection, id).Error
+		First(&collection, id).Error
 	if err != nil {
 		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
 	}
@@ -45,9 +45,23 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	collectionList := collectionEntity.CollectionList{}
 	db := r.db.Model(&collectionEntity.Collection{})
 
-	if filters.CollectionTypeID >= 0 || filters.GradeID >= 0 {
-		// db.Joins("left join collection_types on collection_types.id = collections.type_id").Where("collection_types.grade_id = ? ", filters.CollectionTypeID)
+	if filters.CollectionTypeID > 0 {
+		db = db.Where("collections.type_id = ?", filters.CollectionTypeID)
+	}
+	if filters.GradeID > 0 {
+		db = db.Joins("JOIN collection_types ct_filter ON ct_filter.id = collections.type_id").Where("ct_filter.grade_id = ?", filters.GradeID)
+	}
 
+	limit := filters.Limit
+	offset := filters.Offset
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
 	}
 
 	result := db.Joins("CollectionType").
@@ -55,6 +69,9 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 		Joins("Series").
 		Joins("ReleaseType").
 		Joins("Manufacturer").
+		Order("collections.id DESC").
+		Limit(limit).
+		Offset(offset).
 		Find(&collectionList.Collections)
 	if result.Error != nil {
 		return collectionEntity.CollectionList{}, helper.DBError{ErrorMsg: result.Error}

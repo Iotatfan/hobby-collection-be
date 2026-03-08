@@ -9,17 +9,17 @@ import (
 // Table
 type Collection struct {
 	ID             int               `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	TypeID         int               `gorm:"column:type_id"`
+	TypeID         int               `gorm:"column:type_id;index"`
 	CollectionType CollectionType    `gorm:"foreignKey:TypeID" json:"type"`
 	Title          string            `gorm:"column:title" json:"title" binding:"required"`
-	ReleaseTypeID  int               `gorm:"column:release_type"`
+	ReleaseTypeID  int               `gorm:"column:release_type;index"`
 	ReleaseType    ReleaseType       `gorm:"foreignKey:ReleaseTypeID;default:0"  json:"release_type"`
-	Status         COLLECTION_STATUS `gorm:"column:status" json:"status"`
-	ManufacturerID int               `gorm:"column:manufacturer"`
+	Status         COLLECTION_STATUS `gorm:"column:status;index" json:"status"`
+	ManufacturerID int               `gorm:"column:manufacturer;index"`
 	Manufacturer   Manufacturer      `gorm:"foreignKey:ManufacturerID;default:0"  json:"manufacturer"`
-	SeriesID       int               `gorm:"column:series_id;default:0"`
+	SeriesID       int               `gorm:"column:series_id;default:0;index"`
 	Series         Series            `gorm:"foreignKey:SeriesID" json:"series"`
-	BuiltAt        *time.Time        `gorm:"column:built_at" json:"built_at"`
+	BuiltAt        *time.Time        `gorm:"column:built_at;index" json:"built_at"`
 	Cover          string            `gorm:"column:cover" json:"cover"`
 	Pictures       *[]Picture        `gorm:"foreignKey:CollectionID" json:"pictures"`
 	Description    string
@@ -57,7 +57,7 @@ type Series struct {
 
 type Picture struct {
 	ID           int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	CollectionID int    `gorm:"column:collection_id" json:"collection_id" binding:"required"`
+	CollectionID int    `gorm:"column:collection_id;index" json:"collection_id" binding:"required"`
 	Url          string `gorm:"column:url" json:"url" binding:"required"`
 	helper.Model `gorm:"embedded"`
 }
@@ -75,8 +75,10 @@ type CollectionList struct {
 }
 
 type CollectionFilter struct {
-	CollectionTypeID int
-	GradeID          int
+	CollectionTypeID int `form:"collection_type_id"`
+	GradeID          int `form:"grade_id"`
+	Limit            int `form:"limit"`
+	Offset           int `form:"offset"`
 }
 
 type COLLECTION_STATUS string
