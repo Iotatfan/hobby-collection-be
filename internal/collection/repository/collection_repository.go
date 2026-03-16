@@ -75,8 +75,8 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			COALESCE(s.id, 0) as series_id,
 			COALESCE(s.name, '') as series_name
 		`).
-		Joins("JOIN collection_types ct ON ct.id = c.type_id AND ct.deleted_at IS NULL").
-		Joins("LEFT JOIN grades g ON g.collection_type_id = ct.id AND g.deleted_at IS NULL").
+		Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
+		Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
 		Joins("LEFT JOIN scales sc ON sc.id = g.scale_id AND sc.deleted_at IS NULL").
 		Joins("LEFT JOIN release_types rt ON rt.id = c.release_type AND rt.deleted_at IS NULL").
 		Joins("LEFT JOIN manufacturers m ON m.id = c.manufacturer AND m.deleted_at IS NULL").
@@ -103,7 +103,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 
 	collection := collectionEntity.Collection{
 		ID:             row.ID,
-		TypeID:         row.TypeID,
+		GradeID:        row.GradeID,
 		Title:          row.Title,
 		ReleaseTypeID:  row.ReleaseTypeID,
 		Status:         row.Status,
@@ -168,14 +168,14 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 		Where("c.deleted_at IS NULL")
 
 	if filters.CollectionTypeID > 0 {
-		db = db.Where("c.type_id = ?", filters.CollectionTypeID)
+		db = db.Where("c.grade_id IN (?)",
+			r.db.Model(&collectionEntity.Grade{}).
+				Select("id").
+				Where("collection_type_id = ? AND deleted_at IS NULL", filters.CollectionTypeID),
+		)
 	}
 	if filters.GradeID > 0 {
-		db = db.Where("c.type_id IN (?)",
-			r.db.Model(&collectionEntity.Grade{}).
-				Select("collection_type_id").
-				Where("id = ? AND deleted_at IS NULL", filters.GradeID),
-		)
+		db = db.Where("c.grade_id = ?", filters.GradeID)
 	}
 
 	limit := filters.Limit
@@ -223,8 +223,8 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 			COALESCE(s.id, 0) as series_id,
 			COALESCE(s.name, '') as series_name
 		`).
-		Joins("JOIN collection_types ct ON ct.id = c.type_id AND ct.deleted_at IS NULL").
-		Joins("LEFT JOIN grades g ON g.collection_type_id = ct.id AND g.deleted_at IS NULL").
+		Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
+		Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
 		Joins("LEFT JOIN scales sc ON sc.id = g.scale_id AND sc.deleted_at IS NULL").
 		Joins("LEFT JOIN release_types rt ON rt.id = c.release_type AND rt.deleted_at IS NULL").
 		Joins("LEFT JOIN series s ON s.id = c.series_id AND s.deleted_at IS NULL").
@@ -321,7 +321,7 @@ func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEn
 
 func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error) {
 	collection := collectionEntity.Collection{
-		TypeID:         payload.TypeID,
+		GradeID:        payload.GradeID,
 		Title:          payload.Title,
 		ReleaseTypeID:  payload.ReleaseTypeID,
 		ManufacturerID: payload.ManufacturerID,
@@ -382,8 +382,8 @@ func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity
 		if payload.Title != nil {
 			updates["title"] = *payload.Title
 		}
-		if payload.TypeID != nil {
-			updates["type_id"] = *payload.TypeID
+		if payload.GradeID != nil {
+			updates["grade_id"] = *payload.GradeID
 		}
 		if payload.ReleaseTypeID != nil {
 			updates["release_type"] = *payload.ReleaseTypeID

@@ -9,8 +9,8 @@ import (
 // Table
 type Collection struct {
 	ID             int               `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	TypeID         int               `gorm:"column:type_id;index"`
-	CollectionType CollectionType    `gorm:"foreignKey:TypeID" json:"type"`
+	GradeID        int               `gorm:"column:grade_id;index"`
+	CollectionType CollectionType    `gorm:"-" json:"type"`
 	Title          string            `gorm:"column:title" json:"title" binding:"required"`
 	ReleaseTypeID  int               `gorm:"column:release_type;index"`
 	ReleaseType    ReleaseType       `gorm:"foreignKey:ReleaseTypeID;default:0"  json:"release_type"`
@@ -42,7 +42,7 @@ type Grade struct {
 	ScaleID          int    `gorm:"column:scale_id;index" json:"scale_id"`
 	Scale            Scale  `gorm:"foreignKey:ScaleID" json:"scale_data"`
 	CollectionTypeID int    `gorm:"column:collection_type_id;index" json:"collection_type_id"`
-	helper.Model `gorm:"embedded"`
+	helper.Model     `gorm:"embedded"`
 }
 
 type Scale struct {

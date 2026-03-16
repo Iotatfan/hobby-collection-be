@@ -16,13 +16,17 @@ import (
 	"github.com/iotatfan/hobby-collection-be/internal/handle"
 	"github.com/iotatfan/hobby-collection-be/internal/middleware"
 	"github.com/iotatfan/hobby-collection-be/internal/route"
-	"github.com/iotatfan/hobby-collection-be/pkg/database/gorm"
+	dbgorm "github.com/iotatfan/hobby-collection-be/pkg/database/gorm"
 	"github.com/iotatfan/hobby-collection-be/pkg/storage/cloud"
+	"gorm.io/gorm"
 )
 
 func handleRequests() {
-	db := gorm.NewDB(&config.GetConfig().Postgres)
+	db := dbgorm.NewDB(&config.GetConfig().Postgres)
 	cld := cloud.NewCld(&config.GetConfig().Cloudinary)
+	if err := runSchemaMigrations(db); err != nil {
+		log.Fatalf("schema migration failed: %v", err)
+	}
 	if err := db.AutoMigrate(
 		&entity.Scale{},
 		&entity.Grade{},
@@ -75,6 +79,36 @@ func handleRequests() {
 	}
 	log.Println("Server exiting")
 
+}
+
+func runSchemaMigrations(db *gorm.DB) error {
+	if db.Migrator().HasTable(&entity.Collection{}) {
+		hasTypeID := db.Migrator().HasColumn(&entity.Collection{}, "type_id")
+		hasGradeID := db.Migrator().HasColumn(&entity.Collection{}, "grade_id")
+
+		if hasTypeID && !hasGradeID {
+			if err := db.Migrator().RenameColumn(&entity.Collection{}, "type_id", "grade_id"); err != nil {
+				return err
+			}
+		}
+
+		if hasTypeID && hasGradeID {
+			if err := db.Exec("UPDATE collections SET grade_id = type_id WHERE grade_id = 0").Error; err != nil {
+				return err
+			}
+			if err := db.Migrator().DropColumn(&entity.Collection{}, "type_id"); err != nil {
+				return err
+			}
+		}
+	}
+
+	if db.Migrator().HasTable(&entity.CollectionType{}) && db.Migrator().HasColumn(&entity.CollectionType{}, "scale") {
+		if err := db.Migrator().DropColumn(&entity.CollectionType{}, "scale"); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func main() {

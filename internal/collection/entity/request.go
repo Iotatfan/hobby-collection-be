@@ -7,7 +7,7 @@ import (
 
 type UploadCollectionRequest struct {
 	Title          string                  `form:"title" binding:"required"`
-	TypeID         int                     `form:"type_id" binding:"required"`
+	GradeID        int                     `form:"grade_id" binding:"required"`
 	ReleaseTypeID  int                     `form:"release_type_id" binding:"required"`
 	ManufacturerID int                     `form:"manufacturer_id" binding:"required"`
 	Status         COLLECTION_STATUS       `form:"status"`
@@ -22,7 +22,7 @@ type UploadCollectionRequest struct {
 
 type UpdateCollectionRequest struct {
 	Title                     *string                 `form:"title"`
-	TypeID                    *int                    `form:"type_id"`
+	GradeID                   *int                    `form:"grade_id"`
 	ReleaseTypeID             *int                    `form:"release_type_id"`
 	ManufacturerID            *int                    `form:"manufacturer_id"`
 	Status                    *COLLECTION_STATUS      `form:"status"`
