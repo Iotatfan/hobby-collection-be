@@ -30,7 +30,7 @@ type CollectionType struct {
 	ID                 int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	CollectionTypeName string `gorm:"column:name" json:"name" binding:"required"`
 	Scale              string `gorm:"column:scale" json:"scale" binding:"required"`
-	GradeID            int    `gorm:"column:grade_id;default:0"`
+	GradeID            int    `gorm:"column:grade_id;default:0;index"`
 	Grade              Grade  `gorm:"foreignKey:GradeID" json:"grade"`
 
 	helper.Model `gorm:"embedded"`

@@ -7,6 +7,7 @@ import (
 	"github.com/iotatfan/hobby-collection-be/internal/helper"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type CollectionRepository interface {
@@ -29,19 +30,109 @@ func NewCollectionRepository(db *gorm.DB) CollectionRepository {
 }
 
 func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Collection, error) {
-	collection := collectionEntity.Collection{}
-	err := r.db.Model(&collectionEntity.Collection{}).
-		Joins("CollectionType").
-		Preload("CollectionType.Grade").
-		Joins("Series").
-		Joins("ReleaseType").
-		Joins("Manufacturer").
-		Preload("Pictures", func(db *gorm.DB) *gorm.DB {
-			return db.Order("pictures.created_at DESC").Order("pictures.id DESC")
-		}).
-		First(&collection, id).Error
-	if err != nil {
+	type collectionDetailRow struct {
+		ID               int                                `gorm:"column:id"`
+		Title            string                             `gorm:"column:title"`
+		Status           collectionEntity.COLLECTION_STATUS `gorm:"column:status"`
+		BuiltAt          *time.Time                         `gorm:"column:built_at"`
+		Cover            string                             `gorm:"column:cover"`
+		Description      string                             `gorm:"column:description"`
+		TypeID           int                                `gorm:"column:type_id"`
+		TypeName         string                             `gorm:"column:type_name"`
+		TypeScale        string                             `gorm:"column:type_scale"`
+		GradeID          int                                `gorm:"column:grade_id"`
+		GradeName        string                             `gorm:"column:grade_name"`
+		GradeShortName   string                             `gorm:"column:grade_short_name"`
+		ReleaseTypeID    int                                `gorm:"column:release_type_id"`
+		ReleaseTypeName  string                             `gorm:"column:release_type_name"`
+		ManufacturerID   int                                `gorm:"column:manufacturer_id"`
+		ManufacturerName string                             `gorm:"column:manufacturer_name"`
+		SeriesID         int                                `gorm:"column:series_id"`
+		SeriesName       string                             `gorm:"column:series_name"`
+	}
+
+	row := collectionDetailRow{}
+	result := r.db.Table("collections c").
+		Select(`
+			c.id,
+			c.title,
+			c.status,
+			c.built_at,
+			c.cover,
+			c.description,
+			ct.id as type_id,
+			ct.name as type_name,
+			ct.scale as type_scale,
+			COALESCE(g.id, 0) as grade_id,
+			COALESCE(g.name, '') as grade_name,
+			COALESCE(g.short_name, '') as grade_short_name,
+			COALESCE(rt.id, 0) as release_type_id,
+			COALESCE(rt.name, '') as release_type_name,
+			COALESCE(m.id, 0) as manufacturer_id,
+			COALESCE(m.name, '') as manufacturer_name,
+			COALESCE(s.id, 0) as series_id,
+			COALESCE(s.name, '') as series_name
+		`).
+		Joins("JOIN collection_types ct ON ct.id = c.type_id AND ct.deleted_at IS NULL").
+		Joins("LEFT JOIN grades g ON g.id = ct.grade_id AND g.deleted_at IS NULL").
+		Joins("LEFT JOIN release_types rt ON rt.id = c.release_type AND rt.deleted_at IS NULL").
+		Joins("LEFT JOIN manufacturers m ON m.id = c.manufacturer AND m.deleted_at IS NULL").
+		Joins("LEFT JOIN series s ON s.id = c.series_id AND s.deleted_at IS NULL").
+		Where("c.id = ? AND c.deleted_at IS NULL", id).
+		Limit(1).
+		Scan(&row)
+	if result.Error != nil {
+		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: result.Error}
+	}
+	if result.RowsAffected == 0 {
+		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: gorm.ErrRecordNotFound}
+	}
+
+	pictures := []collectionEntity.Picture{}
+	if err := r.db.Model(&collectionEntity.Picture{}).
+		Select("id", "collection_id", "url").
+		Where("collection_id = ? AND deleted_at IS NULL", id).
+		Order("created_at DESC").
+		Order("id DESC").
+		Find(&pictures).Error; err != nil {
 		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
+	}
+
+	collection := collectionEntity.Collection{
+		ID:             row.ID,
+		TypeID:         row.TypeID,
+		Title:          row.Title,
+		ReleaseTypeID:  row.ReleaseTypeID,
+		Status:         row.Status,
+		ManufacturerID: row.ManufacturerID,
+		SeriesID:       row.SeriesID,
+		BuiltAt:        row.BuiltAt,
+		Cover:          row.Cover,
+		Description:    row.Description,
+		CollectionType: collectionEntity.CollectionType{
+			ID:                 row.TypeID,
+			CollectionTypeName: row.TypeName,
+			Scale:              row.TypeScale,
+			GradeID:            row.GradeID,
+			Grade: collectionEntity.Grade{
+				ID:        row.GradeID,
+				Name:      row.GradeName,
+				ShortName: row.GradeShortName,
+			},
+		},
+		ReleaseType: collectionEntity.ReleaseType{
+			ID:              row.ReleaseTypeID,
+			ReleaseTypeName: row.ReleaseTypeName,
+		},
+		Manufacturer: collectionEntity.Manufacturer{
+			ID:               row.ManufacturerID,
+			ManufacturerName: row.ManufacturerName,
+		},
+		Series: collectionEntity.Series{
+			ID:         row.SeriesID,
+			SeriesName: row.SeriesName,
+		},
+		Pictures: &pictures,
 	}
 
 	return collection, nil
@@ -68,6 +159,47 @@ type collectionListItemRow struct {
 func (r *collectionRepository) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
 	rows := []collectionListItemRow{}
 	db := r.db.Table("collections c").
+		Select("c.id").
+		Where("c.deleted_at IS NULL")
+
+	if filters.CollectionTypeID > 0 {
+		db = db.Where("c.type_id = ?", filters.CollectionTypeID)
+	}
+	if filters.GradeID > 0 {
+		db = db.Where("c.type_id IN (?)",
+			r.db.Model(&collectionEntity.CollectionType{}).
+				Select("id").
+				Where("grade_id = ? AND deleted_at IS NULL", filters.GradeID),
+		)
+	}
+
+	limit := filters.Limit
+	offset := filters.Offset
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	ids := []int{}
+	result := db.Order("c.id DESC").
+		Limit(limit).
+		Offset(offset).
+		Pluck("c.id", &ids)
+	if result.Error != nil {
+		return collectionEntity.CollectionListResponse{}, helper.DBError{ErrorMsg: result.Error}
+	}
+	if len(ids) == 0 {
+		return collectionEntity.CollectionListResponse{
+			Collections: []collectionEntity.CollectionListItemResponse{},
+		}, nil
+	}
+
+	result = r.db.Table("collections c").
 		Select(`
 			c.id,
 			c.title,
@@ -89,30 +221,8 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 		Joins("LEFT JOIN grades g ON g.id = ct.grade_id AND g.deleted_at IS NULL").
 		Joins("LEFT JOIN release_types rt ON rt.id = c.release_type AND rt.deleted_at IS NULL").
 		Joins("LEFT JOIN series s ON s.id = c.series_id AND s.deleted_at IS NULL").
-		Where("c.deleted_at IS NULL")
-
-	if filters.CollectionTypeID > 0 {
-		db = db.Where("c.type_id = ?", filters.CollectionTypeID)
-	}
-	if filters.GradeID > 0 {
-		db = db.Where("ct.grade_id = ?", filters.GradeID)
-	}
-
-	limit := filters.Limit
-	offset := filters.Offset
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-	if offset < 0 {
-		offset = 0
-	}
-
-	result := db.Order("c.id DESC").
-		Limit(limit).
-		Offset(offset).
+		Where("c.id IN ?", ids).
+		Order(clause.Expr{SQL: "c.id DESC"}).
 		Scan(&rows)
 	if result.Error != nil {
 		return collectionEntity.CollectionListResponse{}, helper.DBError{ErrorMsg: result.Error}
