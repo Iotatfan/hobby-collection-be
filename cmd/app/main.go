@@ -87,9 +87,9 @@ func runSchemaMigrations(db *gorm.DB) error {
 		hasGradeID := db.Migrator().HasColumn(&entity.Collection{}, "grade_id")
 
 		if hasGradeID {
-			if err := db.Exec("UPDATE collections SET grade_id = type_id WHERE grade_id = 0").Error; err != nil {
-				return err
-			}
+			// if err := db.Exec("UPDATE collections SET grade_id = type_id WHERE grade_id = 0").Error; err != nil {
+			// 	return err
+			// }
 
 			// Drop FK constraint before dropping column
 			if db.Migrator().HasConstraint(&entity.Collection{}, "fk_collections_collection_type") {
