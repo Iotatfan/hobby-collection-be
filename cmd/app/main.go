@@ -92,13 +92,14 @@ func runSchemaMigrations(db *gorm.DB) error {
 			}
 
 			// Drop FK constraint before dropping column
-			if db.Migrator().HasConstraint(&entity.Collection{}, "CollectionType") {
+			if db.Migrator().HasConstraint(&entity.Collection{}, "fk_collections_collection_type") {
 				fmt.Println("Dropping Constraint")
-				db.Migrator().DropConstraint(&entity.Collection{}, "CollectionType")
+				db.Migrator().DropConstraint(&entity.Collection{}, "fk_collections_collection_type")
 			}
 
-			if err := db.Migrator().DropColumn(&entity.Collection{}, "type_id"); err != nil {
-				return err
+			if db.Migrator().HasConstraint(&entity.Collection{}, "TypeID") {
+				fmt.Println("Dropping Constraint")
+				db.Migrator().DropConstraint(&entity.Collection{}, "TypeID")
 			}
 		}
 	}
