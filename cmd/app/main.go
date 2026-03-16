@@ -83,28 +83,23 @@ func handleRequests() {
 
 func runSchemaMigrations(db *gorm.DB) error {
 	if db.Migrator().HasTable(&entity.Collection{}) {
-		hasTypeID := db.Migrator().HasColumn(&entity.Collection{}, "type_id")
+		// hasTypeID := db.Migrator().HasColumn(&entity.Collection{}, "type_id")
 		hasGradeID := db.Migrator().HasColumn(&entity.Collection{}, "grade_id")
 
-		if hasTypeID && !hasGradeID {
-			if err := db.Migrator().RenameColumn(&entity.Collection{}, "type_id", "grade_id"); err != nil {
-				return err
-			}
-		}
-
-		if hasTypeID && hasGradeID {
+		if hasGradeID {
 			if err := db.Exec("UPDATE collections SET grade_id = type_id WHERE grade_id = 0").Error; err != nil {
 				return err
 			}
+
+			// Drop FK constraint before dropping column
+			if db.Migrator().HasConstraint(&entity.Collection{}, "CollectionType") {
+				fmt.Println("Dropping Constraint")
+				db.Migrator().DropConstraint(&entity.Collection{}, "CollectionType")
+			}
+
 			if err := db.Migrator().DropColumn(&entity.Collection{}, "type_id"); err != nil {
 				return err
 			}
-		}
-	}
-
-	if db.Migrator().HasTable(&entity.CollectionType{}) && db.Migrator().HasColumn(&entity.CollectionType{}, "scale") {
-		if err := db.Migrator().DropColumn(&entity.CollectionType{}, "scale"); err != nil {
-			return err
 		}
 	}
 
