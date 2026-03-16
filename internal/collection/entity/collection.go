@@ -29,17 +29,25 @@ type Collection struct {
 type CollectionType struct {
 	ID                 int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	CollectionTypeName string `gorm:"column:name" json:"name" binding:"required"`
-	Scale              string `gorm:"column:scale" json:"scale" binding:"required"`
-	GradeID            int    `gorm:"column:grade_id;default:0;index"`
-	Grade              Grade  `gorm:"foreignKey:GradeID" json:"grade"`
+	Scale              string `gorm:"-" json:"scale"`
+	Grade              Grade  `gorm:"foreignKey:CollectionTypeID;references:ID" json:"grade"`
 
 	helper.Model `gorm:"embedded"`
 }
 
 type Grade struct {
-	ID           int    `gorm:"primaryKey;column:id" json:"id"`
+	ID               int    `gorm:"primaryKey;column:id" json:"id"`
+	Name             string `gorm:"column:name" json:"name" binding:"required"`
+	ShortName        string `gorm:"column:short_name" json:"short_name"`
+	ScaleID          int    `gorm:"column:scale_id;index" json:"scale_id"`
+	Scale            Scale  `gorm:"foreignKey:ScaleID" json:"scale_data"`
+	CollectionTypeID int    `gorm:"column:collection_type_id;index" json:"collection_type_id"`
+	helper.Model `gorm:"embedded"`
+}
+
+type Scale struct {
+	ID           int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	Name         string `gorm:"column:name" json:"name" binding:"required"`
-	ShortName    string `gorm:"column:short_name" json:"short_name"`
 	helper.Model `gorm:"embedded"`
 }
 

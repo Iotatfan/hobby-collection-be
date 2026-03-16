@@ -24,6 +24,7 @@ func handleRequests() {
 	db := gorm.NewDB(&config.GetConfig().Postgres)
 	cld := cloud.NewCld(&config.GetConfig().Cloudinary)
 	if err := db.AutoMigrate(
+		&entity.Scale{},
 		&entity.Grade{},
 		&entity.CollectionType{},
 		&entity.ReleaseType{},

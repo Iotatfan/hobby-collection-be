@@ -41,6 +41,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		TypeName         string                             `gorm:"column:type_name"`
 		TypeScale        string                             `gorm:"column:type_scale"`
 		GradeID          int                                `gorm:"column:grade_id"`
+		GradeScaleID     int                                `gorm:"column:grade_scale_id"`
 		GradeName        string                             `gorm:"column:grade_name"`
 		GradeShortName   string                             `gorm:"column:grade_short_name"`
 		ReleaseTypeID    int                                `gorm:"column:release_type_id"`
@@ -62,8 +63,9 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			c.description,
 			ct.id as type_id,
 			ct.name as type_name,
-			ct.scale as type_scale,
+			COALESCE(sc.name, '') as type_scale,
 			COALESCE(g.id, 0) as grade_id,
+			COALESCE(g.scale_id, 0) as grade_scale_id,
 			COALESCE(g.name, '') as grade_name,
 			COALESCE(g.short_name, '') as grade_short_name,
 			COALESCE(rt.id, 0) as release_type_id,
@@ -74,7 +76,8 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			COALESCE(s.name, '') as series_name
 		`).
 		Joins("JOIN collection_types ct ON ct.id = c.type_id AND ct.deleted_at IS NULL").
-		Joins("LEFT JOIN grades g ON g.id = ct.grade_id AND g.deleted_at IS NULL").
+		Joins("LEFT JOIN grades g ON g.collection_type_id = ct.id AND g.deleted_at IS NULL").
+		Joins("LEFT JOIN scales sc ON sc.id = g.scale_id AND sc.deleted_at IS NULL").
 		Joins("LEFT JOIN release_types rt ON rt.id = c.release_type AND rt.deleted_at IS NULL").
 		Joins("LEFT JOIN manufacturers m ON m.id = c.manufacturer AND m.deleted_at IS NULL").
 		Joins("LEFT JOIN series s ON s.id = c.series_id AND s.deleted_at IS NULL").
@@ -113,11 +116,12 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			ID:                 row.TypeID,
 			CollectionTypeName: row.TypeName,
 			Scale:              row.TypeScale,
-			GradeID:            row.GradeID,
 			Grade: collectionEntity.Grade{
-				ID:        row.GradeID,
-				Name:      row.GradeName,
-				ShortName: row.GradeShortName,
+				ID:               row.GradeID,
+				Name:             row.GradeName,
+				ShortName:        row.GradeShortName,
+				ScaleID:          row.GradeScaleID,
+				CollectionTypeID: row.TypeID,
 			},
 		},
 		ReleaseType: collectionEntity.ReleaseType{
@@ -148,6 +152,7 @@ type collectionListItemRow struct {
 	TypeName        string                             `gorm:"column:type_name"`
 	TypeScale       string                             `gorm:"column:type_scale"`
 	GradeID         int                                `gorm:"column:grade_id"`
+	GradeScaleID    int                                `gorm:"column:grade_scale_id"`
 	GradeName       string                             `gorm:"column:grade_name"`
 	GradeShortName  string                             `gorm:"column:grade_short_name"`
 	ReleaseTypeID   int                                `gorm:"column:release_type_id"`
@@ -167,9 +172,9 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	}
 	if filters.GradeID > 0 {
 		db = db.Where("c.type_id IN (?)",
-			r.db.Model(&collectionEntity.CollectionType{}).
-				Select("id").
-				Where("grade_id = ? AND deleted_at IS NULL", filters.GradeID),
+			r.db.Model(&collectionEntity.Grade{}).
+				Select("collection_type_id").
+				Where("id = ? AND deleted_at IS NULL", filters.GradeID),
 		)
 	}
 
@@ -208,8 +213,9 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 			c.cover,
 			ct.id as type_id,
 			ct.name as type_name,
-			ct.scale as type_scale,
+			COALESCE(sc.name, '') as type_scale,
 			COALESCE(g.id, 0) as grade_id,
+			COALESCE(g.scale_id, 0) as grade_scale_id,
 			COALESCE(g.name, '') as grade_name,
 			COALESCE(g.short_name, '') as grade_short_name,
 			COALESCE(rt.id, 0) as release_type_id,
@@ -218,7 +224,8 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 			COALESCE(s.name, '') as series_name
 		`).
 		Joins("JOIN collection_types ct ON ct.id = c.type_id AND ct.deleted_at IS NULL").
-		Joins("LEFT JOIN grades g ON g.id = ct.grade_id AND g.deleted_at IS NULL").
+		Joins("LEFT JOIN grades g ON g.collection_type_id = ct.id AND g.deleted_at IS NULL").
+		Joins("LEFT JOIN scales sc ON sc.id = g.scale_id AND sc.deleted_at IS NULL").
 		Joins("LEFT JOIN release_types rt ON rt.id = c.release_type AND rt.deleted_at IS NULL").
 		Joins("LEFT JOIN series s ON s.id = c.series_id AND s.deleted_at IS NULL").
 		Where("c.id IN ?", ids).
@@ -245,9 +252,11 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 				CollectionTypeName: row.TypeName,
 				Scale:              row.TypeScale,
 				Grade: collectionEntity.Grade{
-					ID:        row.GradeID,
-					Name:      row.GradeName,
-					ShortName: row.GradeShortName,
+					ID:               row.GradeID,
+					Name:             row.GradeName,
+					ShortName:        row.GradeShortName,
+					ScaleID:          row.GradeScaleID,
+					CollectionTypeID: row.TypeID,
 				},
 			},
 			ReleaseType: collectionEntity.ReleaseType{
@@ -271,10 +280,13 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 	drawer := collectionEntity.CollectionDrawerResponse{}
 
 	if err := r.db.Model(&collectionEntity.CollectionType{}).
-		Preload("Grade").
+		Preload("Grade.Scale").
 		Order("name ASC").
 		Find(&drawer.CollectionTypes).Error; err != nil {
 		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
+	}
+	for i := range drawer.CollectionTypes {
+		drawer.CollectionTypes[i].Scale = drawer.CollectionTypes[i].Grade.Scale.Name
 	}
 
 	if err := r.db.Model(&collectionEntity.ReleaseType{}).
