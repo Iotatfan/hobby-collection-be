@@ -41,8 +41,14 @@ type CollectionTypeResponse struct {
 }
 
 type CollectionDrawerResponse struct {
-	CollectionTypes []CollectionType `json:"collection_types"`
-	ReleaseTypes    []ReleaseType    `json:"release_types"`
-	Manufacturers   []Manufacturer   `json:"manufacturers"`
-	Series          []Series         `json:"series"`
+	CollectionTypes []CollectionTypeDrawer `json:"collection_types"`
+	ReleaseTypes    []ReleaseType          `json:"release_types"`
+	Manufacturers   []Manufacturer         `json:"manufacturers"`
+	Series          []Series               `json:"series"`
+}
+
+type CollectionTypeDrawer struct {
+	ID                 int     `json:"id"`
+	CollectionTypeName string  `json:"name"`
+	Grades             []Grade `json:"grades"`
 }

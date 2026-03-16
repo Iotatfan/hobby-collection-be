@@ -83,10 +83,14 @@ type CollectionList struct {
 }
 
 type CollectionFilter struct {
-	CollectionTypeID int `form:"collection_type_id"`
-	GradeID          int `form:"grade_id"`
-	Limit            int `form:"limit"`
-	Offset           int `form:"offset"`
+	CollectionTypeID int               `form:"collection_type_id"`
+	GradeID          int               `form:"grade_id"`
+	ReleaseTypeID    int               `form:"release_type_id"`
+	ManufacturerID   int               `form:"manufacturer_id"`
+	SeriesID         int               `form:"series_id"`
+	Status           COLLECTION_STATUS `form:"status"`
+	Limit            int               `form:"limit"`
+	Offset           int               `form:"offset"`
 }
 
 type COLLECTION_STATUS string

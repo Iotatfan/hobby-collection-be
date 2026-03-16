@@ -177,6 +177,18 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	if filters.GradeID > 0 {
 		db = db.Where("c.grade_id = ?", filters.GradeID)
 	}
+	if filters.ReleaseTypeID > 0 {
+		db = db.Where("c.release_type = ?", filters.ReleaseTypeID)
+	}
+	if filters.ManufacturerID > 0 {
+		db = db.Where("c.manufacturer = ?", filters.ManufacturerID)
+	}
+	if filters.SeriesID > 0 {
+		db = db.Where("c.series_id = ?", filters.SeriesID)
+	}
+	if filters.Status != "" {
+		db = db.Where("c.status = ?", filters.Status)
+	}
 
 	limit := filters.Limit
 	offset := filters.Offset
@@ -278,15 +290,67 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 
 func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error) {
 	drawer := collectionEntity.CollectionDrawerResponse{}
+	type collectionTypeRow struct {
+		ID   int    `gorm:"column:id"`
+		Name string `gorm:"column:name"`
+	}
+	type gradeRow struct {
+		ID               int    `gorm:"column:id"`
+		Name             string `gorm:"column:name"`
+		ShortName        string `gorm:"column:short_name"`
+		ScaleID          int    `gorm:"column:scale_id"`
+		CollectionTypeID int    `gorm:"column:collection_type_id"`
+		ScaleName        string `gorm:"column:scale_name"`
+	}
 
-	if err := r.db.Model(&collectionEntity.CollectionType{}).
-		Preload("Grade.Scale").
+	collectionTypes := []collectionTypeRow{}
+	if err := r.db.Table("collection_types").
+		Select("id", "name").
+		Where("deleted_at IS NULL").
 		Order("name ASC").
-		Find(&drawer.CollectionTypes).Error; err != nil {
+		Find(&collectionTypes).Error; err != nil {
 		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
 	}
-	for i := range drawer.CollectionTypes {
-		drawer.CollectionTypes[i].Scale = drawer.CollectionTypes[i].Grade.Scale.Name
+
+	grades := []gradeRow{}
+	if err := r.db.Table("grades g").
+		Select(`
+			g.id,
+			g.name,
+			g.short_name,
+			g.scale_id,
+			g.collection_type_id,
+			COALESCE(s.name, '') as scale_name
+		`).
+		Joins("LEFT JOIN scales s ON s.id = g.scale_id AND s.deleted_at IS NULL").
+		Where("g.deleted_at IS NULL").
+		Order("g.name ASC").
+		Find(&grades).Error; err != nil {
+		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
+	}
+
+	gradesByCollectionTypeID := make(map[int][]collectionEntity.Grade, len(collectionTypes))
+	for _, grade := range grades {
+		gradesByCollectionTypeID[grade.CollectionTypeID] = append(gradesByCollectionTypeID[grade.CollectionTypeID], collectionEntity.Grade{
+			ID:               grade.ID,
+			Name:             grade.Name,
+			ShortName:        grade.ShortName,
+			ScaleID:          grade.ScaleID,
+			CollectionTypeID: grade.CollectionTypeID,
+			Scale: collectionEntity.Scale{
+				ID:   grade.ScaleID,
+				Name: grade.ScaleName,
+			},
+		})
+	}
+
+	drawer.CollectionTypes = make([]collectionEntity.CollectionTypeDrawer, 0, len(collectionTypes))
+	for _, collectionType := range collectionTypes {
+		drawer.CollectionTypes = append(drawer.CollectionTypes, collectionEntity.CollectionTypeDrawer{
+			ID:                 collectionType.ID,
+			CollectionTypeName: collectionType.Name,
+			Grades:             gradesByCollectionTypeID[collectionType.ID],
+		})
 	}
 
 	if err := r.db.Model(&collectionEntity.ReleaseType{}).
