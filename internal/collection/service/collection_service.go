@@ -22,6 +22,7 @@ type CollectionService interface {
 	GetCollectionByID(id int) (collectionEntity.CollectionDetailResponse, error)
 	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
+	GetCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 }
@@ -53,6 +54,10 @@ func (s *collectionService) GetCollectionList(filters collectionEntity.Collectio
 
 func (s *collectionService) GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error) {
 	return s.collectionRepo.GetCollectionDrawer()
+}
+
+func (s *collectionService) GetCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, error) {
+	return s.collectionRepo.GetCollectionFilterDrawer()
 }
 
 func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {

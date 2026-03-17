@@ -47,6 +47,15 @@ type CollectionDrawerResponse struct {
 	Series          []Series               `json:"series"`
 }
 
+type CollectionFilterDrawerResponse struct {
+	CollectionTypes []CollectionTypeFilterItem `json:"collection_types"`
+}
+
+type CollectionTypeFilterItem struct {
+	ID                 int    `json:"id"`
+	CollectionTypeName string `json:"name"`
+}
+
 type CollectionTypeDrawer struct {
 	ID                 int     `json:"id"`
 	CollectionTypeName string  `json:"name"`

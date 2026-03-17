@@ -60,6 +60,15 @@ func (h *CollectiontHandler) GetCollectionDrawer(c *gin.Context) {
 	helper.SuccessResponse(c, result, http.StatusOK)
 }
 
+func (h *CollectiontHandler) GetCollectionFilterDrawer(c *gin.Context) {
+	result, err := h.collectionService.GetCollectionFilterDrawer()
+	if err != nil {
+		helper.ErrorResponse(c, err)
+		return
+	}
+	helper.SuccessResponse(c, result, http.StatusOK)
+}
+
 func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 	req := entity.UploadCollectionRequest{}
 	if err := c.ShouldBind(&req); err != nil {

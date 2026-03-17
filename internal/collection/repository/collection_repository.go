@@ -14,6 +14,7 @@ type CollectionRepository interface {
 	GetCollectionByID(id int) (collectionEntity.Collection, error)
 	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
+	GetCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, error)
 	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
 	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int) (collectionEntity.Collection, error)
@@ -369,6 +370,34 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 		Order("name ASC").
 		Find(&drawer.Series).Error; err != nil {
 		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
+	}
+
+	return drawer, nil
+}
+
+func (r *collectionRepository) GetCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, error) {
+	drawer := collectionEntity.CollectionFilterDrawerResponse{}
+
+	type collectionTypeRow struct {
+		ID   int    `gorm:"column:id"`
+		Name string `gorm:"column:name"`
+	}
+
+	rows := []collectionTypeRow{}
+	if err := r.db.Table("collection_types").
+		Select("id", "name").
+		Where("deleted_at IS NULL").
+		Order("name ASC").
+		Find(&rows).Error; err != nil {
+		return collectionEntity.CollectionFilterDrawerResponse{}, helper.DBError{ErrorMsg: err}
+	}
+
+	drawer.CollectionTypes = make([]collectionEntity.CollectionTypeFilterItem, 0, len(rows))
+	for _, row := range rows {
+		drawer.CollectionTypes = append(drawer.CollectionTypes, collectionEntity.CollectionTypeFilterItem{
+			ID:                 row.ID,
+			CollectionTypeName: row.Name,
+		})
 	}
 
 	return drawer, nil
