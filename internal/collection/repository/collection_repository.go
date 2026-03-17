@@ -291,66 +291,36 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 
 func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error) {
 	drawer := collectionEntity.CollectionDrawerResponse{}
-	type collectionTypeRow struct {
-		ID   int    `gorm:"column:id"`
-		Name string `gorm:"column:name"`
-	}
 	type gradeRow struct {
-		ID               int    `gorm:"column:id"`
-		Name             string `gorm:"column:name"`
-		ShortName        string `gorm:"column:short_name"`
-		ScaleID          int    `gorm:"column:scale_id"`
-		CollectionTypeID int    `gorm:"column:collection_type_id"`
-		ScaleName        string `gorm:"column:scale_name"`
-	}
-
-	collectionTypes := []collectionTypeRow{}
-	if err := r.db.Table("collection_types").
-		Select("id", "name").
-		Where("deleted_at IS NULL").
-		Order("name ASC").
-		Find(&collectionTypes).Error; err != nil {
-		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
+		ID                 int    `gorm:"column:id"`
+		ShortName          string `gorm:"column:short_name"`
+		ScaleName          string `gorm:"column:scale_name"`
+		CollectionTypeName string `gorm:"column:collection_type_name"`
 	}
 
 	grades := []gradeRow{}
 	if err := r.db.Table("grades g").
 		Select(`
 			g.id,
-			g.name,
 			g.short_name,
-			g.scale_id,
-			g.collection_type_id,
-			COALESCE(s.name, '') as scale_name
+			COALESCE(s.name, '') as scale_name,
+			COALESCE(ct.name, '') as collection_type_name
 		`).
 		Joins("LEFT JOIN scales s ON s.id = g.scale_id AND s.deleted_at IS NULL").
+		Joins("LEFT JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
 		Where("g.deleted_at IS NULL").
-		Order("g.name ASC").
+		Order("ct.name ASC, g.short_name ASC, s.name ASC").
 		Find(&grades).Error; err != nil {
 		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
 	}
 
-	gradesByCollectionTypeID := make(map[int][]collectionEntity.Grade, len(collectionTypes))
+	drawer.Grades = make([]collectionEntity.GradeDrawerItem, 0, len(grades))
 	for _, grade := range grades {
-		gradesByCollectionTypeID[grade.CollectionTypeID] = append(gradesByCollectionTypeID[grade.CollectionTypeID], collectionEntity.Grade{
-			ID:               grade.ID,
-			Name:             grade.Name,
-			ShortName:        grade.ShortName,
-			ScaleID:          grade.ScaleID,
-			CollectionTypeID: grade.CollectionTypeID,
-			Scale: collectionEntity.Scale{
-				ID:   grade.ScaleID,
-				Name: grade.ScaleName,
-			},
-		})
-	}
-
-	drawer.CollectionTypes = make([]collectionEntity.CollectionTypeDrawer, 0, len(collectionTypes))
-	for _, collectionType := range collectionTypes {
-		drawer.CollectionTypes = append(drawer.CollectionTypes, collectionEntity.CollectionTypeDrawer{
-			ID:                 collectionType.ID,
-			CollectionTypeName: collectionType.Name,
-			Grades:             gradesByCollectionTypeID[collectionType.ID],
+		drawer.Grades = append(drawer.Grades, collectionEntity.GradeDrawerItem{
+			GradeID:            grade.ID,
+			CollectionTypeName: grade.CollectionTypeName,
+			GradeShortName:     grade.ShortName,
+			Scale:              grade.ScaleName,
 		})
 	}
 

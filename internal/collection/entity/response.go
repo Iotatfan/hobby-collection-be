@@ -41,10 +41,17 @@ type CollectionTypeResponse struct {
 }
 
 type CollectionDrawerResponse struct {
-	CollectionTypes []CollectionTypeDrawer `json:"collection_types"`
-	ReleaseTypes    []ReleaseType          `json:"release_types"`
-	Manufacturers   []Manufacturer         `json:"manufacturers"`
-	Series          []Series               `json:"series"`
+	Grades        []GradeDrawerItem `json:"grades"`
+	ReleaseTypes  []ReleaseType     `json:"release_types"`
+	Manufacturers []Manufacturer    `json:"manufacturers"`
+	Series        []Series          `json:"series"`
+}
+
+type GradeDrawerItem struct {
+	GradeID            int    `json:"grade_id"`
+	CollectionTypeName string `json:"collection_type_name"`
+	GradeShortName     string `json:"grade_short_name"`
+	Scale              string `json:"scale"`
 }
 
 type CollectionFilterDrawerResponse struct {
