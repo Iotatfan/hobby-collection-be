@@ -32,6 +32,12 @@ type collectionService struct {
 	cld            *cloudinary.Cloudinary
 }
 
+const (
+	coverUploadFolder      = "Hobby/Cover"
+	collectionUploadFolder = "Hobby/Collection"
+	addonUploadFolder      = "Hobby/Addons"
+)
+
 func NewCollectionService(collectionRepo collectionRepository.CollectionRepository, cld *cloudinary.Cloudinary) CollectionService {
 	return &collectionService{
 		collectionRepo: collectionRepo,
@@ -64,7 +70,7 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 	log.Printf("[upload] start title=%q grade_id=%d release_type_id=%d manufacturer_id=%d series_id=%d pictures=%d", payload.Title, payload.GradeID, payload.ReleaseTypeID, payload.ManufacturerID, payload.SeriesID, len(payload.Pictures))
 
 	if payload.Cover != nil {
-		coverURL, err := s.uploadImage(payload.Cover)
+		coverURL, err := s.uploadImage(payload.Cover, coverUploadFolder)
 		if err != nil {
 			log.Printf("[upload] cover upload failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
@@ -77,7 +83,7 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 		if payload.Pictures[i] == nil {
 			continue
 		}
-		pictureURL, err := s.uploadImage(payload.Pictures[i])
+		pictureURL, err := s.uploadImage(payload.Pictures[i], collectionUploadFolder)
 		if err != nil {
 			log.Printf("[upload] picture[%d] upload failed: %v", i, err)
 			return collectionEntity.CollectionDetailResponse{}, err
@@ -98,7 +104,7 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 			if addonName == "" {
 				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("addon_names contains an empty name")}
 			}
-			addonURL, err := s.uploadImage(payload.AddonPictures[i])
+			addonURL, err := s.uploadImage(payload.AddonPictures[i], addonUploadFolder)
 			if err != nil {
 				log.Printf("[upload] addon_picture[%d] upload failed: %v", i, err)
 				return collectionEntity.CollectionDetailResponse{}, err
@@ -161,7 +167,7 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 	}
 
 	if payload.Cover != nil {
-		coverURL, err := s.uploadImage(payload.Cover)
+		coverURL, err := s.uploadImage(payload.Cover, coverUploadFolder)
 		if err != nil {
 			log.Printf("[update] cover upload failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
@@ -173,7 +179,7 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 		if payload.NewPictures[i] == nil {
 			continue
 		}
-		pictureURL, err := s.uploadImage(payload.NewPictures[i])
+		pictureURL, err := s.uploadImage(payload.NewPictures[i], collectionUploadFolder)
 		if err != nil {
 			log.Printf("[update] picture[%d] upload failed: %v", i, err)
 			return collectionEntity.CollectionDetailResponse{}, err
@@ -255,7 +261,7 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 				continue
 			}
 
-			addonURL, err := s.uploadImage(payload.UpdateAddonPictures[i])
+			addonURL, err := s.uploadImage(payload.UpdateAddonPictures[i], addonUploadFolder)
 			if err != nil {
 				log.Printf("[update] addon_picture[%d] upload failed: %v", i, err)
 				return collectionEntity.CollectionDetailResponse{}, err
@@ -279,7 +285,7 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 			if addonName == "" {
 				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("new_addon_names contains an empty name")}
 			}
-			addonURL, err := s.uploadImage(payload.NewAddonPictures[i])
+			addonURL, err := s.uploadImage(payload.NewAddonPictures[i], addonUploadFolder)
 			if err != nil {
 				log.Printf("[update] addon_picture[%d] upload failed: %v", i, err)
 				return collectionEntity.CollectionDetailResponse{}, err
@@ -318,7 +324,7 @@ func getAddons(collection collectionEntity.Collection) []collectionEntity.Addon 
 	return *collection.Addons
 }
 
-func (s *collectionService) uploadImage(fileHeader *multipart.FileHeader) (string, error) {
+func (s *collectionService) uploadImage(fileHeader *multipart.FileHeader, folder string) (string, error) {
 	if s.cld == nil {
 		return "", helper.ServiceError{ErrorMsg: "cloudinary client is not configured", Code: http.StatusInternalServerError}
 	}
@@ -332,6 +338,7 @@ func (s *collectionService) uploadImage(fileHeader *multipart.FileHeader) (strin
 
 	result, err := s.cld.Upload.Upload(context.Background(), file, uploader.UploadParams{
 		Transformation: "f_auto,q_auto:good,w_800,c_limit",
+		Folder:         folder,
 	})
 	if err != nil {
 		return "", helper.ServiceError{ErrorMsg: err.Error(), Code: http.StatusInternalServerError}
