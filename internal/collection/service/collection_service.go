@@ -45,7 +45,7 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
-	return mapCollectionReponse(collection, getPictures(collection)), nil
+	return mapCollectionReponse(collection, getPictures(collection), getAddons(collection)), nil
 }
 
 func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
@@ -99,7 +99,7 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
-	return mapCollectionReponse(collection, getPictures(collection)), nil
+	return mapCollectionReponse(collection, getPictures(collection), getAddons(collection)), nil
 }
 
 func (s *collectionService) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
@@ -171,7 +171,7 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
-	return mapCollectionReponse(collection, getPictures(collection)), nil
+	return mapCollectionReponse(collection, getPictures(collection), getAddons(collection)), nil
 }
 
 func getPictures(collection collectionEntity.Collection) []collectionEntity.Picture {
@@ -179,6 +179,13 @@ func getPictures(collection collectionEntity.Collection) []collectionEntity.Pict
 		return nil
 	}
 	return *collection.Pictures
+}
+
+func getAddons(collection collectionEntity.Collection) []collectionEntity.Addon {
+	if collection.Addons == nil {
+		return nil
+	}
+	return *collection.Addons
 }
 
 func (s *collectionService) uploadImage(fileHeader *multipart.FileHeader) (string, error) {
@@ -287,7 +294,7 @@ func cachePathToPublicID(storedValue string) string {
 	return strings.TrimPrefix(trimmed, "/")
 }
 
-func mapCollectionReponse(collection collectionEntity.Collection, pictures []collectionEntity.Picture) collectionEntity.CollectionDetailResponse {
+func mapCollectionReponse(collection collectionEntity.Collection, pictures []collectionEntity.Picture, addons []collectionEntity.Addon) collectionEntity.CollectionDetailResponse {
 
 	builtAt := time.Time{}
 	if collection.BuiltAt != nil {
@@ -318,6 +325,7 @@ func mapCollectionReponse(collection collectionEntity.Collection, pictures []col
 		Cover:        collection.Cover,
 		Description:  collection.Description,
 		Pictures:     picturesResp,
+		Addons:       addons,
 	}
 
 	return result

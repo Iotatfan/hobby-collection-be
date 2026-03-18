@@ -102,6 +102,16 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
 	}
 
+	addons := []collectionEntity.Addon{}
+	if err := r.db.Model(&collectionEntity.Addon{}).
+		Select("id", "addon_name", "collection_id", "picture", "created_at", "updated_at").
+		Where("collection_id = ? AND deleted_at IS NULL", id).
+		Order("created_at DESC").
+		Order("id DESC").
+		Find(&addons).Error; err != nil {
+		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
+	}
+
 	collection := collectionEntity.Collection{
 		ID:             row.ID,
 		GradeID:        row.GradeID,
@@ -138,6 +148,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			SeriesName: row.SeriesName,
 		},
 		Pictures: &pictures,
+		Addons:   &addons,
 	}
 
 	return collection, nil

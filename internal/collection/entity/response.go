@@ -15,6 +15,7 @@ type CollectionDetailResponse struct {
 	BuiltAt      time.Time              `json:"built_at"`
 	Cover        string                 `json:"cover"`
 	Pictures     []string               `json:"pictures"`
+	Addons       []Addon                `json:"addons"`
 	Description  string                 `json:"description"`
 }
 

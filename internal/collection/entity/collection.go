@@ -22,8 +22,17 @@ type Collection struct {
 	BuiltAt        *time.Time        `gorm:"column:built_at;index" json:"built_at"`
 	Cover          string            `gorm:"column:cover" json:"cover"`
 	Pictures       *[]Picture        `gorm:"foreignKey:CollectionID" json:"pictures"`
+	Addons         *[]Addon          `gorm:"foreignKey:CollectionID" json:"addons"`
 	Description    string
 	helper.Model   `gorm:"embedded"`
+}
+
+type Addon struct {
+	ID           int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
+	AddonName    string `gorm:"column:addon_name" json:"addon_name" binding:"required"`
+	CollectionID int    `gorm:"column:collection_id;index" json:"collection_id" binding:"required"`
+	Picture      string `gorm:"column:picture" json:"picture" binding:"required"`
+	helper.Model `gorm:"embedded"`
 }
 
 type CollectionType struct {
