@@ -15,9 +15,12 @@ type UploadCollectionRequest struct {
 	BuiltAt        time.Time               `form:"built_at" time_format:"2006-01-02T15:04:05Z07:00"`
 	Cover          *multipart.FileHeader   `form:"cover"`
 	Pictures       []*multipart.FileHeader `form:"pictures"`
+	AddonNames     []string                `form:"addon_names"`
+	AddonPictures  []*multipart.FileHeader `form:"addon_pictures"`
 	Description    string                  `form:"description"`
 	CoverURL       string                  `form:"-" json:"-"`
 	PictureURLs    []string                `form:"-" json:"-"`
+	AddonPictureURLs []string              `form:"-" json:"-"`
 }
 
 type UpdateCollectionRequest struct {
@@ -33,6 +36,15 @@ type UpdateCollectionRequest struct {
 	NewPictures               []*multipart.FileHeader `form:"new_pictures"`
 	ExistingPictureIDs        []int                   `form:"existing_picture_ids"`
 	ExistingPictureIDsPresent bool                    `form:"-" json:"-"`
+	NewAddonNames             []string                `form:"new_addon_names"`
+	NewAddonPictures          []*multipart.FileHeader `form:"new_addon_pictures"`
+	ExistingAddonIDs          []int                   `form:"existing_addon_ids"`
+	ExistingAddonIDsPresent   bool                    `form:"-" json:"-"`
+	UpdateAddonIDs            []int                   `form:"update_addon_ids"`
+	UpdateAddonNames          []string                `form:"update_addon_names"`
+	UpdateAddonPictures       []*multipart.FileHeader `form:"update_addon_pictures"`
 	CoverURL                  string                  `form:"-" json:"-"`
 	NewPictureURLs            []string                `form:"-" json:"-"`
+	NewAddonPictureURLs       []string                `form:"-" json:"-"`
+	UpdateAddonPictureURLs    []string                `form:"-" json:"-"`
 }

@@ -86,6 +86,28 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 		log.Printf("[upload] picture[%d] uploaded url=%s", i, pictureURL)
 	}
 
+	if len(payload.AddonNames) > 0 || len(payload.AddonPictures) > 0 {
+		if len(payload.AddonNames) != len(payload.AddonPictures) {
+			return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("addon_names and addon_pictures must have the same length")}
+		}
+		for i := range payload.AddonPictures {
+			if payload.AddonPictures[i] == nil {
+				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("addon_pictures contains an empty file")}
+			}
+			addonName := strings.TrimSpace(payload.AddonNames[i])
+			if addonName == "" {
+				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("addon_names contains an empty name")}
+			}
+			addonURL, err := s.uploadImage(payload.AddonPictures[i])
+			if err != nil {
+				log.Printf("[upload] addon_picture[%d] upload failed: %v", i, err)
+				return collectionEntity.CollectionDetailResponse{}, err
+			}
+			payload.AddonPictureURLs = append(payload.AddonPictureURLs, addonURL)
+			log.Printf("[upload] addon_picture[%d] uploaded url=%s", i, addonURL)
+		}
+	}
+
 	log.Printf("[upload] saving to db cover_url=%s picture_urls=%d", payload.CoverURL, len(payload.PictureURLs))
 	collection, err := s.collectionRepo.UploadCollection(payload)
 	if err != nil {
@@ -159,12 +181,120 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 		payload.NewPictureURLs = append(payload.NewPictureURLs, pictureURL)
 	}
 
-	if _, err := s.collectionRepo.UpdateCollection(id, payload, deletePictureIDs); err != nil {
+	deleteAddonIDs := make([]int, 0)
+	deleteAddonPublicIDs := make([]string, 0)
+	currentAddons := []collectionEntity.Addon{}
+	if payload.ExistingAddonIDsPresent || len(payload.UpdateAddonIDs) > 0 {
+		addons, err := s.collectionRepo.GetAddonsByCollectionID(id)
+		if err != nil {
+			log.Printf("[update] load current addons failed: %v", err)
+			return collectionEntity.CollectionDetailResponse{}, err
+		}
+		currentAddons = addons
+	}
+
+	if payload.ExistingAddonIDsPresent {
+		currentIDMap := make(map[int]collectionEntity.Addon, len(currentAddons))
+		for _, addon := range currentAddons {
+			currentIDMap[addon.ID] = addon
+		}
+
+		keepIDMap := make(map[int]struct{}, len(payload.ExistingAddonIDs))
+		for _, addonID := range payload.ExistingAddonIDs {
+			if _, exists := currentIDMap[addonID]; !exists {
+				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("one or more existing_addon_ids do not belong to this collection")}
+			}
+			keepIDMap[addonID] = struct{}{}
+		}
+
+		for _, addon := range currentAddons {
+			if _, keep := keepIDMap[addon.ID]; keep {
+				continue
+			}
+			deleteAddonIDs = append(deleteAddonIDs, addon.ID)
+			if addon.Picture != "" {
+				deleteAddonPublicIDs = append(deleteAddonPublicIDs, addon.Picture)
+			}
+		}
+	}
+
+	if len(payload.UpdateAddonIDs) > 0 {
+		if len(payload.UpdateAddonNames) > 0 && len(payload.UpdateAddonNames) != len(payload.UpdateAddonIDs) {
+			return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("update_addon_names must have the same length as update_addon_ids")}
+		}
+		if len(payload.UpdateAddonPictures) > 0 && len(payload.UpdateAddonPictures) != len(payload.UpdateAddonIDs) {
+			return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("update_addon_pictures must have the same length as update_addon_ids")}
+		}
+
+		currentByID := make(map[int]collectionEntity.Addon, len(currentAddons))
+		for _, addon := range currentAddons {
+			currentByID[addon.ID] = addon
+		}
+
+		payload.UpdateAddonPictureURLs = make([]string, 0, len(payload.UpdateAddonIDs))
+		for i := range payload.UpdateAddonIDs {
+			addonID := payload.UpdateAddonIDs[i]
+			current, ok := currentByID[addonID]
+			if !ok {
+				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("one or more update_addon_ids do not belong to this collection")}
+			}
+
+			if len(payload.UpdateAddonNames) > 0 {
+				if strings.TrimSpace(payload.UpdateAddonNames[i]) == "" {
+					return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("update_addon_names contains an empty name")}
+				}
+			}
+
+			// picture update is optional; keep placeholder alignment for repository
+			if len(payload.UpdateAddonPictures) == 0 {
+				payload.UpdateAddonPictureURLs = append(payload.UpdateAddonPictureURLs, "")
+				continue
+			}
+			if payload.UpdateAddonPictures[i] == nil {
+				payload.UpdateAddonPictureURLs = append(payload.UpdateAddonPictureURLs, "")
+				continue
+			}
+
+			addonURL, err := s.uploadImage(payload.UpdateAddonPictures[i])
+			if err != nil {
+				log.Printf("[update] addon_picture[%d] upload failed: %v", i, err)
+				return collectionEntity.CollectionDetailResponse{}, err
+			}
+			payload.UpdateAddonPictureURLs = append(payload.UpdateAddonPictureURLs, addonURL)
+			if current.Picture != "" {
+				deleteAddonPublicIDs = append(deleteAddonPublicIDs, current.Picture)
+			}
+		}
+	}
+
+	if len(payload.NewAddonNames) > 0 || len(payload.NewAddonPictures) > 0 {
+		if len(payload.NewAddonNames) != len(payload.NewAddonPictures) {
+			return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("new_addon_names and new_addon_pictures must have the same length")}
+		}
+		for i := range payload.NewAddonPictures {
+			if payload.NewAddonPictures[i] == nil {
+				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("new_addon_pictures contains an empty file")}
+			}
+			addonName := strings.TrimSpace(payload.NewAddonNames[i])
+			if addonName == "" {
+				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("new_addon_names contains an empty name")}
+			}
+			addonURL, err := s.uploadImage(payload.NewAddonPictures[i])
+			if err != nil {
+				log.Printf("[update] addon_picture[%d] upload failed: %v", i, err)
+				return collectionEntity.CollectionDetailResponse{}, err
+			}
+			payload.NewAddonPictureURLs = append(payload.NewAddonPictureURLs, addonURL)
+		}
+	}
+
+	if _, err := s.collectionRepo.UpdateCollection(id, payload, deletePictureIDs, deleteAddonIDs); err != nil {
 		log.Printf("[update] db update failed: %v", err)
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
 	s.deleteCloudinaryByPublicID(deletePicturePublicIDs)
+	s.deleteCloudinaryByPublicID(deleteAddonPublicIDs)
 
 	collection, err := s.collectionRepo.GetCollectionByID(id)
 	if err != nil {

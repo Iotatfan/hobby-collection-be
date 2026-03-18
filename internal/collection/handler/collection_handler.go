@@ -89,6 +89,27 @@ func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 		if pictures, ok := form.File["pictures[]"]; ok && len(pictures) > 0 {
 			req.Pictures = append(req.Pictures, pictures...)
 		}
+
+		if addonPictures, ok := form.File["addon_pictures"]; ok && len(addonPictures) > 0 {
+			req.AddonPictures = addonPictures
+		}
+		if addonPictures, ok := form.File["addon_pictures[]"]; ok && len(addonPictures) > 0 {
+			req.AddonPictures = append(req.AddonPictures, addonPictures...)
+		}
+	}
+
+	addonNames, hasAddonNames := c.GetPostFormArray("addon_names")
+	if !hasAddonNames {
+		addonNames, hasAddonNames = c.GetPostFormArray("addon_names[]")
+	}
+	if !hasAddonNames {
+		if raw, exists := c.GetPostForm("addon_names"); exists {
+			hasAddonNames = true
+			addonNames = strings.Split(raw, ",")
+		}
+	}
+	if hasAddonNames {
+		req.AddonNames = addonNames
 	}
 
 	if req.Cover == nil {
@@ -136,6 +157,74 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 		if pictures, ok := form.File["new_pictures[]"]; ok && len(pictures) > 0 {
 			req.NewPictures = append(req.NewPictures, pictures...)
 		}
+
+		if addonPictures, ok := form.File["new_addon_pictures"]; ok && len(addonPictures) > 0 {
+			req.NewAddonPictures = addonPictures
+		}
+		if addonPictures, ok := form.File["new_addon_pictures[]"]; ok && len(addonPictures) > 0 {
+			req.NewAddonPictures = append(req.NewAddonPictures, addonPictures...)
+		}
+
+		if addonPictures, ok := form.File["update_addon_pictures"]; ok && len(addonPictures) > 0 {
+			req.UpdateAddonPictures = addonPictures
+		}
+		if addonPictures, ok := form.File["update_addon_pictures[]"]; ok && len(addonPictures) > 0 {
+			req.UpdateAddonPictures = append(req.UpdateAddonPictures, addonPictures...)
+		}
+	}
+
+	newAddonNames, hasNewAddonNames := c.GetPostFormArray("new_addon_names")
+	if !hasNewAddonNames {
+		newAddonNames, hasNewAddonNames = c.GetPostFormArray("new_addon_names[]")
+	}
+	if !hasNewAddonNames {
+		if raw, exists := c.GetPostForm("new_addon_names"); exists {
+			hasNewAddonNames = true
+			newAddonNames = strings.Split(raw, ",")
+		}
+	}
+	if hasNewAddonNames {
+		req.NewAddonNames = newAddonNames
+	}
+
+	updateAddonIDsRaw, hasUpdateAddonIDs := c.GetPostFormArray("update_addon_ids")
+	if !hasUpdateAddonIDs {
+		updateAddonIDsRaw, hasUpdateAddonIDs = c.GetPostFormArray("update_addon_ids[]")
+	}
+	if !hasUpdateAddonIDs {
+		if raw, exists := c.GetPostForm("update_addon_ids"); exists {
+			hasUpdateAddonIDs = true
+			updateAddonIDsRaw = strings.Split(raw, ",")
+		}
+	}
+	if hasUpdateAddonIDs {
+		req.UpdateAddonIDs = make([]int, 0, len(updateAddonIDsRaw))
+		for _, v := range updateAddonIDsRaw {
+			trimmed := strings.TrimSpace(v)
+			if trimmed == "" {
+				continue
+			}
+			addonID, parseErr := strconv.Atoi(trimmed)
+			if parseErr != nil {
+				helper.ErrorResponse(c, parseErr)
+				return
+			}
+			req.UpdateAddonIDs = append(req.UpdateAddonIDs, addonID)
+		}
+	}
+
+	updateAddonNames, hasUpdateAddonNames := c.GetPostFormArray("update_addon_names")
+	if !hasUpdateAddonNames {
+		updateAddonNames, hasUpdateAddonNames = c.GetPostFormArray("update_addon_names[]")
+	}
+	if !hasUpdateAddonNames {
+		if raw, exists := c.GetPostForm("update_addon_names"); exists {
+			hasUpdateAddonNames = true
+			updateAddonNames = strings.Split(raw, ",")
+		}
+	}
+	if hasUpdateAddonNames {
+		req.UpdateAddonNames = updateAddonNames
 	}
 
 	existingIDsRaw, hasExistingIDs := c.GetPostFormArray("existing_picture_ids")
@@ -163,6 +252,33 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 				return
 			}
 			req.ExistingPictureIDs = append(req.ExistingPictureIDs, pictureID)
+		}
+	}
+
+	existingAddonIDsRaw, hasExistingAddonIDs := c.GetPostFormArray("existing_addon_ids")
+	if !hasExistingAddonIDs {
+		existingAddonIDsRaw, hasExistingAddonIDs = c.GetPostFormArray("existing_addon_ids[]")
+	}
+	if !hasExistingAddonIDs {
+		if raw, exists := c.GetPostForm("existing_addon_ids"); exists {
+			hasExistingAddonIDs = true
+			existingAddonIDsRaw = strings.Split(raw, ",")
+		}
+	}
+	if hasExistingAddonIDs {
+		req.ExistingAddonIDsPresent = true
+		req.ExistingAddonIDs = make([]int, 0, len(existingAddonIDsRaw))
+		for _, v := range existingAddonIDsRaw {
+			trimmed := strings.TrimSpace(v)
+			if trimmed == "" {
+				continue
+			}
+			addonID, parseErr := strconv.Atoi(trimmed)
+			if parseErr != nil {
+				helper.ErrorResponse(c, parseErr)
+				return
+			}
+			req.ExistingAddonIDs = append(req.ExistingAddonIDs, addonID)
 		}
 	}
 

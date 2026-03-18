@@ -5,6 +5,7 @@ import (
 
 	collectionEntity "github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	"github.com/iotatfan/hobby-collection-be/internal/helper"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -16,8 +17,9 @@ type CollectionRepository interface {
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, error)
 	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
+	GetAddonsByCollectionID(id int) ([]collectionEntity.Addon, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
-	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int) (collectionEntity.Collection, error)
+	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error)
 }
 
 type collectionRepository struct {
@@ -393,6 +395,15 @@ func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEn
 	return pictures, nil
 }
 
+func (r *collectionRepository) GetAddonsByCollectionID(id int) ([]collectionEntity.Addon, error) {
+	addons := []collectionEntity.Addon{}
+	err := r.db.Model(&collectionEntity.Addon{}).Where("collection_id = ?", id).Find(&addons).Error
+	if err != nil {
+		return []collectionEntity.Addon{}, helper.DBError{ErrorMsg: err}
+	}
+	return addons, nil
+}
+
 func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error) {
 	collection := collectionEntity.Collection{
 		GradeID:        payload.GradeID,
@@ -418,21 +429,42 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 		pictures = append(pictures, collectionEntity.Picture{Url: pictureURL})
 	}
 
+	addons := make([]collectionEntity.Addon, 0, len(payload.AddonNames))
+	if len(payload.AddonNames) > 0 && len(payload.AddonNames) == len(payload.AddonPictureURLs) {
+		for i := range payload.AddonNames {
+			name := strings.TrimSpace(payload.AddonNames[i])
+			pic := payload.AddonPictureURLs[i]
+			if name == "" || pic == "" {
+				continue
+			}
+			addons = append(addons, collectionEntity.Addon{
+				AddonName: name,
+				Picture:   pic,
+			})
+		}
+	}
+
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&collection).Error; err != nil {
 			return err
 		}
 
-		if len(pictures) == 0 {
-			return nil
+		if len(pictures) > 0 {
+			for i := range pictures {
+				pictures[i].CollectionID = collection.ID
+			}
+			if err := tx.Create(&pictures).Error; err != nil {
+				return err
+			}
 		}
 
-		for i := range pictures {
-			pictures[i].CollectionID = collection.ID
-		}
-
-		if err := tx.Create(&pictures).Error; err != nil {
-			return err
+		if len(addons) > 0 {
+			for i := range addons {
+				addons[i].CollectionID = collection.ID
+			}
+			if err := tx.Create(&addons).Error; err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -444,7 +476,7 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 	return collection, nil
 }
 
-func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int) (collectionEntity.Collection, error) {
+func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error) {
 	collection := collectionEntity.Collection{}
 
 	err := r.db.Transaction(func(tx *gorm.DB) error {
@@ -493,6 +525,12 @@ func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity
 			}
 		}
 
+		if len(deleteAddonIDs) > 0 {
+			if err := tx.Where("collection_id = ? AND id IN ?", id, deleteAddonIDs).Delete(&collectionEntity.Addon{}).Error; err != nil {
+				return err
+			}
+		}
+
 		if len(payload.NewPictureURLs) > 0 {
 			newPictures := make([]collectionEntity.Picture, 0, len(payload.NewPictureURLs))
 			for _, pictureURL := range payload.NewPictureURLs {
@@ -507,6 +545,59 @@ func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity
 
 			if len(newPictures) > 0 {
 				if err := tx.Create(&newPictures).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		if len(payload.UpdateAddonIDs) > 0 {
+			for i := range payload.UpdateAddonIDs {
+				addonID := payload.UpdateAddonIDs[i]
+				if addonID <= 0 {
+					continue
+				}
+
+				update := map[string]any{}
+				if len(payload.UpdateAddonNames) == len(payload.UpdateAddonIDs) {
+					name := strings.TrimSpace(payload.UpdateAddonNames[i])
+					if name != "" {
+						update["addon_name"] = name
+					}
+				}
+				if len(payload.UpdateAddonPictureURLs) == len(payload.UpdateAddonIDs) {
+					pic := strings.TrimSpace(payload.UpdateAddonPictureURLs[i])
+					if pic != "" {
+						update["picture"] = pic
+					}
+				}
+				if len(update) == 0 {
+					continue
+				}
+
+				if err := tx.Model(&collectionEntity.Addon{}).
+					Where("collection_id = ? AND id = ?", id, addonID).
+					Updates(update).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		if len(payload.NewAddonNames) > 0 && len(payload.NewAddonNames) == len(payload.NewAddonPictureURLs) {
+			newAddons := make([]collectionEntity.Addon, 0, len(payload.NewAddonNames))
+			for i := range payload.NewAddonNames {
+				name := strings.TrimSpace(payload.NewAddonNames[i])
+				pic := payload.NewAddonPictureURLs[i]
+				if name == "" || pic == "" {
+					continue
+				}
+				newAddons = append(newAddons, collectionEntity.Addon{
+					CollectionID: id,
+					AddonName:    name,
+					Picture:      pic,
+				})
+			}
+			if len(newAddons) > 0 {
+				if err := tx.Create(&newAddons).Error; err != nil {
 					return err
 				}
 			}
