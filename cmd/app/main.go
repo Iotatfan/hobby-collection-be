@@ -32,6 +32,7 @@ func handleRequests() {
 		&entity.Series{},
 		&entity.Collection{},
 		&entity.Picture{},
+		&entity.Addon{},
 	); err != nil {
 		log.Fatalf("auto migrate failed: %v", err)
 	}
