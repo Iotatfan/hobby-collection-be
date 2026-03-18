@@ -9,17 +9,17 @@ import (
 // Table
 type Collection struct {
 	ID             int               `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	GradeID        int               `gorm:"column:grade_id;index"`
+	GradeID        int               `gorm:"column:grade_id"`
 	CollectionType CollectionType    `gorm:"-" json:"type"`
 	Title          string            `gorm:"column:title" json:"title" binding:"required"`
-	ReleaseTypeID  int               `gorm:"column:release_type;index"`
+	ReleaseTypeID  int               `gorm:"column:release_type"`
 	ReleaseType    ReleaseType       `gorm:"foreignKey:ReleaseTypeID;default:0"  json:"release_type"`
-	Status         COLLECTION_STATUS `gorm:"column:status;index" json:"status"`
-	ManufacturerID int               `gorm:"column:manufacturer;index"`
+	Status         COLLECTION_STATUS `gorm:"column:status" json:"status"`
+	ManufacturerID int               `gorm:"column:manufacturer"`
 	Manufacturer   Manufacturer      `gorm:"foreignKey:ManufacturerID;default:0"  json:"manufacturer"`
-	SeriesID       int               `gorm:"column:series_id;default:0;index"`
+	SeriesID       int               `gorm:"column:series_id;default:0"`
 	Series         Series            `gorm:"foreignKey:SeriesID" json:"series"`
-	BuiltAt        *time.Time        `gorm:"column:built_at;index" json:"built_at"`
+	BuiltAt        *time.Time        `gorm:"column:built_at" json:"built_at"`
 	Cover          string            `gorm:"column:cover" json:"cover"`
 	Pictures       *[]Picture        `gorm:"foreignKey:CollectionID" json:"pictures"`
 	Addons         *[]Addon          `gorm:"foreignKey:CollectionID" json:"addons"`
@@ -30,7 +30,7 @@ type Collection struct {
 type Addon struct {
 	ID           int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	AddonName    string `gorm:"column:addon_name" json:"addon_name" binding:"required"`
-	CollectionID int    `gorm:"column:collection_id;index" json:"collection_id" binding:"required"`
+	CollectionID int    `gorm:"column:collection_id" json:"collection_id" binding:"required"`
 	Picture      string `gorm:"column:picture" json:"picture" binding:"required"`
 	helper.Model `gorm:"embedded"`
 }
@@ -48,9 +48,9 @@ type Grade struct {
 	ID               int    `gorm:"primaryKey;column:id" json:"id"`
 	Name             string `gorm:"column:name" json:"name" binding:"required"`
 	ShortName        string `gorm:"column:short_name" json:"short_name"`
-	ScaleID          int    `gorm:"column:scale_id;index" json:"scale_id"`
+	ScaleID          int    `gorm:"column:scale_id" json:"scale_id"`
 	Scale            Scale  `gorm:"foreignKey:ScaleID" json:"scale_data"`
-	CollectionTypeID int    `gorm:"column:collection_type_id;index" json:"collection_type_id"`
+	CollectionTypeID int    `gorm:"column:collection_type_id" json:"collection_type_id"`
 	helper.Model     `gorm:"embedded"`
 }
 
@@ -74,7 +74,7 @@ type Series struct {
 
 type Picture struct {
 	ID           int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	CollectionID int    `gorm:"column:collection_id;index" json:"collection_id" binding:"required"`
+	CollectionID int    `gorm:"column:collection_id" json:"collection_id" binding:"required"`
 	Url          string `gorm:"column:url" json:"url" binding:"required"`
 	helper.Model `gorm:"embedded"`
 }
