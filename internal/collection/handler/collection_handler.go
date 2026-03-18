@@ -227,31 +227,25 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 		req.UpdateAddonNames = updateAddonNames
 	}
 
-	existingIDsRaw, hasExistingIDs := c.GetPostFormArray("existing_picture_ids")
-	if !hasExistingIDs {
-		existingIDsRaw, hasExistingIDs = c.GetPostFormArray("existing_picture_ids[]")
+	deletedURLs, hasDeletedURLs := c.GetPostFormArray("deleted_picture_urls")
+	if !hasDeletedURLs {
+		deletedURLs, hasDeletedURLs = c.GetPostFormArray("deleted_picture_urls[]")
 	}
-	if !hasExistingIDs {
-		if raw, exists := c.GetPostForm("existing_picture_ids"); exists {
-			hasExistingIDs = true
-			existingIDsRaw = strings.Split(raw, ",")
+	if !hasDeletedURLs {
+		if raw, exists := c.GetPostForm("deleted_picture_urls"); exists {
+			hasDeletedURLs = true
+			deletedURLs = strings.Split(raw, ",")
 		}
 	}
-
-	if hasExistingIDs {
-		req.ExistingPictureIDsPresent = true
-		req.ExistingPictureIDs = make([]int, 0, len(existingIDsRaw))
-		for _, v := range existingIDsRaw {
+	if hasDeletedURLs {
+		req.DeletedPictureURLsPresent = true
+		req.DeletedPictureURLs = make([]string, 0, len(deletedURLs))
+		for _, v := range deletedURLs {
 			trimmed := strings.TrimSpace(v)
 			if trimmed == "" {
 				continue
 			}
-			pictureID, parseErr := strconv.Atoi(trimmed)
-			if parseErr != nil {
-				helper.ErrorResponse(c, parseErr)
-				return
-			}
-			req.ExistingPictureIDs = append(req.ExistingPictureIDs, pictureID)
+			req.DeletedPictureURLs = append(req.DeletedPictureURLs, trimmed)
 		}
 	}
 

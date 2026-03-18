@@ -131,34 +131,42 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 }
 
 func (s *collectionService) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
-	log.Printf("[update] start collection_id=%d new_pictures=%d keep_picture_ids=%d", id, len(payload.NewPictures), len(payload.ExistingPictureIDs))
+	log.Printf("[update] start collection_id=%d new_pictures=%d delete_picture_urls=%d", id, len(payload.NewPictures), len(payload.DeletedPictureURLs))
 
 	deletePictureIDs := make([]int, 0)
 	deletePicturePublicIDs := make([]string, 0)
-	if payload.ExistingPictureIDsPresent {
+	if payload.DeletedPictureURLsPresent {
 		currentPictures, err := s.collectionRepo.GetPicturesByCollectionID(id)
 		if err != nil {
 			log.Printf("[update] load current pictures failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
 		}
 
-		currentIDMap := make(map[int]struct{}, len(currentPictures))
+		publicIDToPicture := make(map[string]collectionEntity.Picture, len(currentPictures))
 		for _, picture := range currentPictures {
-			currentIDMap[picture.ID] = struct{}{}
-		}
-
-		keepIDMap := make(map[int]struct{}, len(payload.ExistingPictureIDs))
-		for _, pictureID := range payload.ExistingPictureIDs {
-			if _, exists := currentIDMap[pictureID]; !exists {
-				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("one or more existing_picture_ids do not belong to this collection")}
-			}
-			keepIDMap[pictureID] = struct{}{}
-		}
-
-		for _, picture := range currentPictures {
-			if _, keep := keepIDMap[picture.ID]; keep {
+			publicID := cloudinaryValueToPublicID(picture.Url)
+			if publicID == "" {
 				continue
 			}
+			publicIDToPicture[publicID] = picture
+		}
+
+		seenPublicIDs := make(map[string]struct{}, len(payload.DeletedPictureURLs))
+		for _, pictureURL := range payload.DeletedPictureURLs {
+			publicID := cloudinaryValueToPublicID(pictureURL)
+			if publicID == "" {
+				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("one or more deleted_picture_urls are invalid")}
+			}
+			if _, seen := seenPublicIDs[publicID]; seen {
+				continue
+			}
+			seenPublicIDs[publicID] = struct{}{}
+
+			picture, exists := publicIDToPicture[publicID]
+			if !exists {
+				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("one or more deleted_picture_urls do not belong to this collection")}
+			}
+
 			deletePictureIDs = append(deletePictureIDs, picture.ID)
 			if picture.Url != "" {
 				deletePicturePublicIDs = append(deletePicturePublicIDs, picture.Url)
@@ -364,7 +372,7 @@ func (s *collectionService) deleteCloudinaryByPublicID(publicIDs []string) {
 		if storedValue == "" {
 			continue
 		}
-		publicID := cachePathToPublicID(storedValue)
+		publicID := cloudinaryValueToPublicID(storedValue)
 		if publicID == "" {
 			log.Printf("[cloudinary] skip delete: invalid stored value=%s", storedValue)
 			continue
@@ -429,6 +437,23 @@ func cachePathToPublicID(storedValue string) string {
 	}
 
 	return strings.TrimPrefix(trimmed, "/")
+}
+
+func cloudinaryValueToPublicID(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+		cachePath, err := toCloudinaryCachePath(trimmed)
+		if err != nil {
+			return ""
+		}
+		return cachePathToPublicID(cachePath)
+	}
+
+	return cachePathToPublicID(trimmed)
 }
 
 func mapCollectionReponse(collection collectionEntity.Collection, pictures []collectionEntity.Picture, addons []collectionEntity.Addon) collectionEntity.CollectionDetailResponse {
