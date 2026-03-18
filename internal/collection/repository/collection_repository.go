@@ -388,7 +388,12 @@ func (r *collectionRepository) GetCollectionFilterDrawer() (collectionEntity.Col
 
 func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error) {
 	pictures := []collectionEntity.Picture{}
-	err := r.db.Model(&collectionEntity.Picture{}).Where("collection_id = ?", id).Find(&pictures).Error
+	err := r.db.Model(&collectionEntity.Picture{}).
+		Select("id", "collection_id", "url").
+		Where("collection_id = ? AND deleted_at IS NULL", id).
+		Order("created_at DESC").
+		Order("id DESC").
+		Find(&pictures).Error
 	if err != nil {
 		return []collectionEntity.Picture{}, helper.DBError{ErrorMsg: err}
 	}
@@ -397,7 +402,12 @@ func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEn
 
 func (r *collectionRepository) GetAddonsByCollectionID(id int) ([]collectionEntity.Addon, error) {
 	addons := []collectionEntity.Addon{}
-	err := r.db.Model(&collectionEntity.Addon{}).Where("collection_id = ?", id).Find(&addons).Error
+	err := r.db.Model(&collectionEntity.Addon{}).
+		Select("id", "addon_name", "collection_id", "picture", "created_at", "updated_at").
+		Where("collection_id = ? AND deleted_at IS NULL", id).
+		Order("created_at DESC").
+		Order("id DESC").
+		Find(&addons).Error
 	if err != nil {
 		return []collectionEntity.Addon{}, helper.DBError{ErrorMsg: err}
 	}
