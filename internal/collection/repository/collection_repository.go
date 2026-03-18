@@ -1,6 +1,9 @@
 package repository
 
 import (
+	"errors"
+	"fmt"
+	"sync"
 	"time"
 
 	collectionEntity "github.com/iotatfan/hobby-collection-be/internal/collection/entity"
@@ -95,23 +98,40 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 	}
 
 	pictures := []collectionEntity.Picture{}
-	if err := r.db.Model(&collectionEntity.Picture{}).
-		Select("id", "collection_id", "url").
-		Where("collection_id = ? AND deleted_at IS NULL", id).
-		Order("created_at DESC").
-		Order("id DESC").
-		Find(&pictures).Error; err != nil {
-		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
-	}
-
 	addons := []collectionEntity.Addon{}
-	if err := r.db.Model(&collectionEntity.Addon{}).
-		Select("id", "addon_name", "collection_id", "picture", "created_at", "updated_at").
-		Where("collection_id = ? AND deleted_at IS NULL", id).
-		Order("created_at DESC").
-		Order("id DESC").
-		Find(&addons).Error; err != nil {
-		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
+	var picturesErr error
+	var addonsErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		picturesErr = r.db.Model(&collectionEntity.Picture{}).
+			Select("id", "collection_id", "url").
+			Where("collection_id = ? AND deleted_at IS NULL", id).
+			Order("created_at DESC").
+			Order("id DESC").
+			Find(&pictures).Error
+	}()
+
+	go func() {
+		defer wg.Done()
+		addonsErr = r.db.Model(&collectionEntity.Addon{}).
+			Select("id", "addon_name", "collection_id", "picture", "created_at", "updated_at").
+			Where("collection_id = ? AND deleted_at IS NULL", id).
+			Order("created_at DESC").
+			Order("id DESC").
+			Find(&addons).Error
+	}()
+
+	wg.Wait()
+	if picturesErr != nil || addonsErr != nil {
+		return collectionEntity.Collection{}, helper.DBError{
+			ErrorMsg: errors.Join(
+				wrapErr("load pictures", picturesErr),
+				wrapErr("load addons", addonsErr),
+			),
+		}
 	}
 
 	collection := collectionEntity.Collection{
@@ -182,11 +202,8 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 		Where("c.deleted_at IS NULL")
 
 	if filters.CollectionTypeID > 0 {
-		db = db.Where("c.grade_id IN (?)",
-			r.db.Model(&collectionEntity.Grade{}).
-				Select("id").
-				Where("collection_type_id = ? AND deleted_at IS NULL", filters.CollectionTypeID),
-		)
+		db = db.Joins("JOIN grades gf ON gf.id = c.grade_id AND gf.deleted_at IS NULL").
+			Where("gf.collection_type_id = ?", filters.CollectionTypeID)
 	}
 	if filters.GradeID > 0 {
 		db = db.Where("c.grade_id = ?", filters.GradeID)
@@ -391,8 +408,6 @@ func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEn
 	err := r.db.Model(&collectionEntity.Picture{}).
 		Select("id", "collection_id", "url").
 		Where("collection_id = ? AND deleted_at IS NULL", id).
-		Order("created_at DESC").
-		Order("id DESC").
 		Find(&pictures).Error
 	if err != nil {
 		return []collectionEntity.Picture{}, helper.DBError{ErrorMsg: err}
@@ -405,8 +420,6 @@ func (r *collectionRepository) GetAddonsByCollectionID(id int) ([]collectionEnti
 	err := r.db.Model(&collectionEntity.Addon{}).
 		Select("id", "addon_name", "collection_id", "picture", "created_at", "updated_at").
 		Where("collection_id = ? AND deleted_at IS NULL", id).
-		Order("created_at DESC").
-		Order("id DESC").
 		Find(&addons).Error
 	if err != nil {
 		return []collectionEntity.Addon{}, helper.DBError{ErrorMsg: err}
@@ -484,6 +497,13 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 	}
 
 	return collection, nil
+}
+
+func wrapErr(scope string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", scope, err)
 }
 
 func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error) {
