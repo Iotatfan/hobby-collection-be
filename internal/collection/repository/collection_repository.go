@@ -354,23 +354,51 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 		})
 	}
 
-	if err := r.db.Model(&collectionEntity.ReleaseType{}).
-		Order("name ASC").
-		Find(&drawer.ReleaseTypes).Error; err != nil {
-		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
+	releaseTypes := []collectionEntity.ReleaseType{}
+	manufacturers := []collectionEntity.Manufacturer{}
+	series := []collectionEntity.Series{}
+
+	var releaseTypesErr error
+	var manufacturersErr error
+	var seriesErr error
+	var drawerWG sync.WaitGroup
+	drawerWG.Add(3)
+
+	go func() {
+		defer drawerWG.Done()
+		releaseTypesErr = r.db.Model(&collectionEntity.ReleaseType{}).
+			Order("name ASC").
+			Find(&releaseTypes).Error
+	}()
+
+	go func() {
+		defer drawerWG.Done()
+		manufacturersErr = r.db.Model(&collectionEntity.Manufacturer{}).
+			Order("name ASC").
+			Find(&manufacturers).Error
+	}()
+
+	go func() {
+		defer drawerWG.Done()
+		seriesErr = r.db.Model(&collectionEntity.Series{}).
+			Order("name ASC").
+			Find(&series).Error
+	}()
+
+	drawerWG.Wait()
+	if releaseTypesErr != nil || manufacturersErr != nil || seriesErr != nil {
+		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{
+			ErrorMsg: errors.Join(
+				wrapErr("load release types", releaseTypesErr),
+				wrapErr("load manufacturers", manufacturersErr),
+				wrapErr("load series", seriesErr),
+			),
+		}
 	}
 
-	if err := r.db.Model(&collectionEntity.Manufacturer{}).
-		Order("name ASC").
-		Find(&drawer.Manufacturers).Error; err != nil {
-		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
-	}
-
-	if err := r.db.Model(&collectionEntity.Series{}).
-		Order("name ASC").
-		Find(&drawer.Series).Error; err != nil {
-		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
-	}
+	drawer.ReleaseTypes = releaseTypes
+	drawer.Manufacturers = manufacturers
+	drawer.Series = series
 
 	return drawer, nil
 }
