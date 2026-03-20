@@ -1,6 +1,9 @@
 mock:
 	mockery --all --case underscore
 
+migrate:
+	go run ./cmd/migrate
+
 test:
 	go test -race -coverprofile=coverage.out $(shell go list ./... | grep -v /mocks/ | grep -v /cmd/)
 	go tool cover -func=coverage.out

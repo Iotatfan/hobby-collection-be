@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	"github.com/iotatfan/hobby-collection-be/internal/config"
 	"github.com/iotatfan/hobby-collection-be/internal/handle"
 	"github.com/iotatfan/hobby-collection-be/internal/middleware"
@@ -31,19 +30,6 @@ const (
 func handleRequests() {
 	db := gorm.NewDB(&config.GetConfig().Postgres)
 	cld := cloud.NewCld(&config.GetConfig().Cloudinary)
-	if err := db.AutoMigrate(
-		&entity.Scale{},
-		&entity.Grade{},
-		&entity.CollectionType{},
-		&entity.ReleaseType{},
-		&entity.Manufacturer{},
-		&entity.Series{},
-		&entity.Collection{},
-		&entity.Picture{},
-		&entity.Addon{},
-	); err != nil {
-		log.Fatalf("auto migrate failed: %v", err)
-	}
 
 	g := gin.Default()
 	g.Use(middleware.CORS())
@@ -70,9 +56,10 @@ func handleRequests() {
 	}()
 
 	// Wait for interrupt signal to gracefully shutdown the server.
-	quit := make(chan os.Signal, 2)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
+	signal.Stop(quit)
 	log.Println("Shutdown Server ...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
@@ -80,10 +67,8 @@ func handleRequests() {
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatal("Server Shutdown:", err)
 	}
-	// Catch ctx.Done() timeout.
-	select {
-	case <-ctx.Done():
-		log.Printf("timeout of %s.", serverShutdownTimeout)
+	if err := ctx.Err(); err == context.DeadlineExceeded {
+		log.Printf("graceful shutdown timed out after %s", serverShutdownTimeout)
 	}
 	log.Println("Server exiting")
 
@@ -92,7 +77,7 @@ func handleRequests() {
 func main() {
 	err := config.InitConfig()
 	if err != nil {
-		fmt.Println("Config Error: ", err.Error())
+		log.Fatalf("config error: %v", err)
 	}
 
 	handleRequests()
