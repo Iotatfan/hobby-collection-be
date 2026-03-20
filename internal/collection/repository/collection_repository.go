@@ -199,11 +199,12 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	rows := []collectionListItemRow{}
 	db := r.db.Table("collections c").
 		Select("c.id").
+		Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
+		Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
 		Where("c.deleted_at IS NULL")
 
 	if filters.CollectionTypeID > 0 {
-		db = db.Joins("JOIN grades gf ON gf.id = c.grade_id AND gf.deleted_at IS NULL").
-			Where("gf.collection_type_id = ?", filters.CollectionTypeID)
+		db = db.Where("g.collection_type_id = ?", filters.CollectionTypeID)
 	}
 	if filters.GradeID > 0 {
 		db = db.Where("c.grade_id = ?", filters.GradeID)
