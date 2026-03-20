@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cloudinary/cloudinary-go/v2"
@@ -36,6 +37,7 @@ const (
 	coverUploadFolder      = "Hobby/Cover"
 	collectionUploadFolder = "Hobby/Collection"
 	addonUploadFolder      = "Hobby/Addons"
+	uploadWorkerCount      = 4
 )
 
 func NewCollectionService(collectionRepo collectionRepository.CollectionRepository, cld *cloudinary.Cloudinary) CollectionService {
@@ -70,7 +72,7 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 	log.Printf("[upload] start title=%q grade_id=%d release_type_id=%d manufacturer_id=%d series_id=%d pictures=%d", payload.Title, payload.GradeID, payload.ReleaseTypeID, payload.ManufacturerID, payload.SeriesID, len(payload.Pictures))
 
 	if payload.Cover != nil {
-		coverURL, err := s.uploadImage(payload.Cover, coverUploadFolder)
+		coverURL, err := s.uploadSingleImage(payload.Cover, coverUploadFolder)
 		if err != nil {
 			log.Printf("[upload] cover upload failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
@@ -79,18 +81,12 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 		log.Printf("[upload] cover uploaded url=%s", payload.CoverURL)
 	}
 
-	for i := range payload.Pictures {
-		if payload.Pictures[i] == nil {
-			continue
-		}
-		pictureURL, err := s.uploadImage(payload.Pictures[i], collectionUploadFolder)
-		if err != nil {
-			log.Printf("[upload] picture[%d] upload failed: %v", i, err)
-			return collectionEntity.CollectionDetailResponse{}, err
-		}
-		payload.PictureURLs = append(payload.PictureURLs, pictureURL)
-		log.Printf("[upload] picture[%d] uploaded url=%s", i, pictureURL)
+	pictureURLs, err := s.uploadImageBatch(payload.Pictures, collectionUploadFolder, false)
+	if err != nil {
+		log.Printf("[upload] picture upload failed: %v", err)
+		return collectionEntity.CollectionDetailResponse{}, err
 	}
+	payload.PictureURLs = pictureURLs
 
 	if len(payload.AddonNames) > 0 || len(payload.AddonPictures) > 0 {
 		if len(payload.AddonNames) != len(payload.AddonPictures) {
@@ -104,14 +100,14 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 			if addonName == "" {
 				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("addon_names contains an empty name")}
 			}
-			addonURL, err := s.uploadImage(payload.AddonPictures[i], addonUploadFolder)
-			if err != nil {
-				log.Printf("[upload] addon_picture[%d] upload failed: %v", i, err)
-				return collectionEntity.CollectionDetailResponse{}, err
-			}
-			payload.AddonPictureURLs = append(payload.AddonPictureURLs, addonURL)
-			log.Printf("[upload] addon_picture[%d] uploaded url=%s", i, addonURL)
 		}
+
+		addonPictureURLs, err := s.uploadImageBatch(payload.AddonPictures, addonUploadFolder, false)
+		if err != nil {
+			log.Printf("[upload] addon picture upload failed: %v", err)
+			return collectionEntity.CollectionDetailResponse{}, err
+		}
+		payload.AddonPictureURLs = addonPictureURLs
 	}
 
 	log.Printf("[upload] saving to db cover_url=%s picture_urls=%d", payload.CoverURL, len(payload.PictureURLs))
@@ -175,7 +171,7 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 	}
 
 	if payload.Cover != nil {
-		coverURL, err := s.uploadImage(payload.Cover, coverUploadFolder)
+		coverURL, err := s.uploadSingleImage(payload.Cover, coverUploadFolder)
 		if err != nil {
 			log.Printf("[update] cover upload failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
@@ -183,17 +179,12 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 		payload.CoverURL = coverURL
 	}
 
-	for i := range payload.NewPictures {
-		if payload.NewPictures[i] == nil {
-			continue
-		}
-		pictureURL, err := s.uploadImage(payload.NewPictures[i], collectionUploadFolder)
-		if err != nil {
-			log.Printf("[update] picture[%d] upload failed: %v", i, err)
-			return collectionEntity.CollectionDetailResponse{}, err
-		}
-		payload.NewPictureURLs = append(payload.NewPictureURLs, pictureURL)
+	newPictureURLs, err := s.uploadImageBatch(payload.NewPictures, collectionUploadFolder, false)
+	if err != nil {
+		log.Printf("[update] picture upload failed: %v", err)
+		return collectionEntity.CollectionDetailResponse{}, err
 	}
+	payload.NewPictureURLs = newPictureURLs
 
 	deleteAddonIDs := make([]int, 0)
 	deleteAddonPublicIDs := make([]string, 0)
@@ -260,24 +251,20 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 			}
 
 			// picture update is optional; keep placeholder alignment for repository
-			if len(payload.UpdateAddonPictures) == 0 {
-				payload.UpdateAddonPictureURLs = append(payload.UpdateAddonPictureURLs, "")
-				continue
-			}
-			if payload.UpdateAddonPictures[i] == nil {
-				payload.UpdateAddonPictureURLs = append(payload.UpdateAddonPictureURLs, "")
-				continue
-			}
-
-			addonURL, err := s.uploadImage(payload.UpdateAddonPictures[i], addonUploadFolder)
-			if err != nil {
-				log.Printf("[update] addon_picture[%d] upload failed: %v", i, err)
-				return collectionEntity.CollectionDetailResponse{}, err
-			}
-			payload.UpdateAddonPictureURLs = append(payload.UpdateAddonPictureURLs, addonURL)
-			if current.Picture != "" {
+			if len(payload.UpdateAddonPictures) > 0 && payload.UpdateAddonPictures[i] != nil && current.Picture != "" {
 				deleteAddonPublicIDs = append(deleteAddonPublicIDs, current.Picture)
 			}
+		}
+
+		if len(payload.UpdateAddonPictures) > 0 {
+			updateAddonPictureURLs, err := s.uploadImageBatch(payload.UpdateAddonPictures, addonUploadFolder, true)
+			if err != nil {
+				log.Printf("[update] addon picture upload failed: %v", err)
+				return collectionEntity.CollectionDetailResponse{}, err
+			}
+			payload.UpdateAddonPictureURLs = updateAddonPictureURLs
+		} else {
+			payload.UpdateAddonPictureURLs = make([]string, len(payload.UpdateAddonIDs))
 		}
 	}
 
@@ -293,13 +280,14 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 			if addonName == "" {
 				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("new_addon_names contains an empty name")}
 			}
-			addonURL, err := s.uploadImage(payload.NewAddonPictures[i], addonUploadFolder)
-			if err != nil {
-				log.Printf("[update] addon_picture[%d] upload failed: %v", i, err)
-				return collectionEntity.CollectionDetailResponse{}, err
-			}
-			payload.NewAddonPictureURLs = append(payload.NewAddonPictureURLs, addonURL)
 		}
+
+		newAddonPictureURLs, err := s.uploadImageBatch(payload.NewAddonPictures, addonUploadFolder, false)
+		if err != nil {
+			log.Printf("[update] addon picture upload failed: %v", err)
+			return collectionEntity.CollectionDetailResponse{}, err
+		}
+		payload.NewAddonPictureURLs = newAddonPictureURLs
 	}
 
 	if _, err := s.collectionRepo.UpdateCollection(id, payload, deletePictureIDs, deleteAddonIDs); err != nil {
@@ -332,7 +320,7 @@ func getAddons(collection collectionEntity.Collection) []collectionEntity.Addon 
 	return *collection.Addons
 }
 
-func (s *collectionService) uploadImage(fileHeader *multipart.FileHeader, folder string) (string, error) {
+func (s *collectionService) uploadSingleImage(fileHeader *multipart.FileHeader, folder string) (string, error) {
 	if s.cld == nil {
 		return "", helper.ServiceError{ErrorMsg: "cloudinary client is not configured", Code: http.StatusInternalServerError}
 	}
@@ -361,6 +349,78 @@ func (s *collectionService) uploadImage(fileHeader *multipart.FileHeader, folder
 	}
 
 	return cachePath, nil
+}
+
+func (s *collectionService) uploadImageBatch(files []*multipart.FileHeader, folder string, preserveAlignment bool) ([]string, error) {
+	if len(files) == 0 {
+		return []string{}, nil
+	}
+
+	workerCount := uploadWorkerCount
+	if len(files) < workerCount {
+		workerCount = len(files)
+	}
+
+	type uploadResult struct {
+		index int
+		url   string
+		err   error
+	}
+
+	jobs := make(chan int)
+	results := make(chan uploadResult, len(files))
+
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for idx := range jobs {
+				if files[idx] == nil {
+					results <- uploadResult{index: idx}
+					continue
+				}
+				url, err := s.uploadSingleImage(files[idx], folder)
+				results <- uploadResult{index: idx, url: url, err: err}
+			}
+		}()
+	}
+
+	go func() {
+		for idx := range files {
+			jobs <- idx
+		}
+		close(jobs)
+		wg.Wait()
+		close(results)
+	}()
+
+	ordered := make([]string, len(files))
+	var firstErr error
+	for result := range results {
+		if result.err != nil && firstErr == nil {
+			firstErr = result.err
+			continue
+		}
+		ordered[result.index] = result.url
+	}
+	if firstErr != nil {
+		return nil, firstErr
+	}
+
+	if preserveAlignment {
+		return ordered, nil
+	}
+
+	compact := make([]string, 0, len(ordered))
+	for _, value := range ordered {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		compact = append(compact, value)
+	}
+
+	return compact, nil
 }
 
 func (s *collectionService) deleteCloudinaryByPublicID(publicIDs []string) {
