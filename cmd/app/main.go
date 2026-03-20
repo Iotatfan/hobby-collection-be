@@ -20,6 +20,14 @@ import (
 	"github.com/iotatfan/hobby-collection-be/pkg/storage/cloud"
 )
 
+const (
+	serverReadHeaderTimeout = 5 * time.Second
+	serverReadTimeout       = 15 * time.Second
+	serverWriteTimeout      = 30 * time.Second
+	serverIdleTimeout       = 60 * time.Second
+	serverShutdownTimeout   = 10 * time.Second
+)
+
 func handleRequests() {
 	db := gorm.NewDB(&config.GetConfig().Postgres)
 	cld := cloud.NewCld(&config.GetConfig().Cloudinary)
@@ -44,8 +52,12 @@ func handleRequests() {
 	handle.SetupCollection(g, db, cld)
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", config.GetConfig().Server.Port),
-		Handler: g,
+		Addr:              fmt.Sprintf(":%d", config.GetConfig().Server.Port),
+		Handler:           g,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		ReadTimeout:       serverReadTimeout,
+		WriteTimeout:      serverWriteTimeout,
+		IdleTimeout:       serverIdleTimeout,
 	}
 
 	go func() {
@@ -57,22 +69,21 @@ func handleRequests() {
 
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server with
-	// a timeout of 5 seconds.
+	// Wait for interrupt signal to gracefully shutdown the server.
 	quit := make(chan os.Signal, 2)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-quit
 	log.Println("Shutdown Server ...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatal("Server Shutdown:", err)
 	}
-	// catching ctx.Done(). timeout of 1 seconds.
+	// Catch ctx.Done() timeout.
 	select {
 	case <-ctx.Done():
-		log.Println("timeout of 1 seconds.")
+		log.Printf("timeout of %s.", serverShutdownTimeout)
 	}
 	log.Println("Server exiting")
 
