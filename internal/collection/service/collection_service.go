@@ -333,7 +333,7 @@ func (s *collectionService) uploadSingleImage(fileHeader *multipart.FileHeader, 
 	defer file.Close()
 
 	result, err := s.cld.Upload.Upload(context.Background(), file, uploader.UploadParams{
-		Transformation: "f_auto,q_auto:good,w_800,c_limit",
+		Transformation: "f_auto,q_auto:good,w_1920,c_limit",
 		Folder:         folder,
 	})
 	if err != nil {
