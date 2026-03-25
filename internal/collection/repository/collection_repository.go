@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type CollectionRepository interface {
@@ -235,7 +234,8 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	}
 
 	ids := []int{}
-	result := db.Order("c.id DESC").
+	result := db.Order("c.built_at DESC NULLS LAST").
+		Order("c.id DESC").
 		Limit(limit).
 		Offset(offset).
 		Pluck("c.id", &ids)
@@ -273,16 +273,27 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 		Joins("LEFT JOIN release_types rt ON rt.id = c.release_type AND rt.deleted_at IS NULL").
 		Joins("LEFT JOIN series s ON s.id = c.series_id AND s.deleted_at IS NULL").
 		Where("c.id IN ?", ids).
-		Order(clause.Expr{SQL: "c.id DESC"}).
+		Order("c.built_at DESC NULLS LAST").
+		Order("c.id DESC").
 		Scan(&rows)
 	if result.Error != nil {
 		return collectionEntity.CollectionListResponse{}, helper.DBError{ErrorMsg: result.Error}
 	}
 
-	response := collectionEntity.CollectionListResponse{
-		Collections: make([]collectionEntity.CollectionListItemResponse, 0, len(rows)),
-	}
+	rowByID := make(map[int]collectionListItemRow, len(rows))
 	for _, row := range rows {
+		rowByID[row.ID] = row
+	}
+
+	response := collectionEntity.CollectionListResponse{
+		Collections: make([]collectionEntity.CollectionListItemResponse, 0, len(ids)),
+	}
+	for _, id := range ids {
+		row, exists := rowByID[id]
+		if !exists {
+			continue
+		}
+
 		builtAt := time.Time{}
 		if row.BuiltAt != nil {
 			builtAt = row.BuiltAt.Local()
