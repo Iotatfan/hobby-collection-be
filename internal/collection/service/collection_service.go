@@ -593,9 +593,10 @@ func cloudinaryValueToPublicID(value string) string {
 
 func mapCollectionReponse(collection collectionEntity.Collection, pictures []collectionEntity.Picture, addons []collectionEntity.Addon) collectionEntity.CollectionDetailResponse {
 
-	builtAt := time.Time{}
+	var builtAt *time.Time
 	if collection.BuiltAt != nil {
-		builtAt = collection.BuiltAt.Local()
+		localBuiltAt := collection.BuiltAt.Local()
+		builtAt = &localBuiltAt
 	}
 
 	collectionTypeResp := collectionEntity.CollectionTypeResponse{

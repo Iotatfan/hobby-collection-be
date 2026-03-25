@@ -294,9 +294,10 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 			continue
 		}
 
-		builtAt := time.Time{}
+		var builtAt *time.Time
 		if row.BuiltAt != nil {
-			builtAt = row.BuiltAt.Local()
+			localBuiltAt := row.BuiltAt.Local()
+			builtAt = &localBuiltAt
 		}
 
 		response.Collections = append(response.Collections, collectionEntity.CollectionListItemResponse{

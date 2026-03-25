@@ -12,7 +12,7 @@ type CollectionDetailResponse struct {
 	Manufacturer Manufacturer           `json:"manufacturer"`
 	Status       COLLECTION_STATUS      `json:"status"`
 	Series       Series                 `json:"series"`
-	BuiltAt      time.Time              `json:"built_at"`
+	BuiltAt      *time.Time             `json:"built_at"`
 	Cover        string                 `json:"cover"`
 	Pictures     []string               `json:"pictures"`
 	Addons       []Addon                `json:"addons"`
@@ -30,7 +30,7 @@ type CollectionListItemResponse struct {
 	ReleaseType ReleaseType            `json:"release_type"`
 	Status      COLLECTION_STATUS      `json:"status"`
 	Series      Series                 `json:"series"`
-	BuiltAt     time.Time              `json:"built_at"`
+	BuiltAt     *time.Time             `json:"built_at"`
 	Cover       string                 `json:"cover"`
 }
 
