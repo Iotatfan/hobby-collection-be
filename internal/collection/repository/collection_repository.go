@@ -208,8 +208,8 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	if filters.GradeID > 0 {
 		db = db.Where("c.grade_id = ?", filters.GradeID)
 	}
-	if filters.ReleaseTypeID > 0 {
-		db = db.Where("c.release_type = ?", filters.ReleaseTypeID)
+	if len(filters.ReleaseTypeIDs) > 0 {
+		db = db.Where("c.release_type IN ?", filters.ReleaseTypeIDs)
 	}
 	if filters.ManufacturerID > 0 {
 		db = db.Where("c.manufacturer = ?", filters.ManufacturerID)
@@ -234,8 +234,10 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	}
 
 	ids := []int{}
-	result := db.Order("c.built_at DESC NULLS LAST").
-		Order("c.id DESC").
+	orderBy1, orderBy2 := getCollectionListSort(filters.Sort)
+
+	result := db.Order(orderBy1).
+		Order(orderBy2).
 		Limit(limit).
 		Offset(offset).
 		Pluck("c.id", &ids)
@@ -273,8 +275,8 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 		Joins("LEFT JOIN release_types rt ON rt.id = c.release_type AND rt.deleted_at IS NULL").
 		Joins("LEFT JOIN series s ON s.id = c.series_id AND s.deleted_at IS NULL").
 		Where("c.id IN ?", ids).
-		Order("c.built_at DESC NULLS LAST").
-		Order("c.id DESC").
+		Order(orderBy1).
+		Order(orderBy2).
 		Scan(&rows)
 	if result.Error != nil {
 		return collectionEntity.CollectionListResponse{}, helper.DBError{ErrorMsg: result.Error}
@@ -330,6 +332,21 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	}
 
 	return response, nil
+}
+
+func getCollectionListSort(sort string) (string, string) {
+	sort = strings.TrimSpace(strings.ToLower(sort))
+
+	switch sort {
+	case "latest", "latest_built":
+		return "c.built_at DESC NULLS LAST", "c.id DESC"
+	case "name", "name_asc":
+		return "c.title ASC", "c.id ASC"
+	case "name_desc":
+		return "c.title DESC", "c.id DESC"
+	default:
+		return "c.built_at DESC NULLS LAST", "c.id DESC"
+	}
 }
 
 func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error) {

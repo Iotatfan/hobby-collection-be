@@ -38,6 +38,7 @@ const (
 	collectionUploadFolder = "Hobby/Collection"
 	addonUploadFolder      = "Hobby/Addons"
 	uploadWorkerCount      = 4
+	defaultCollectionSort  = "latest_built"
 )
 
 func NewCollectionService(collectionRepo collectionRepository.CollectionRepository, cld *cloudinary.Cloudinary) CollectionService {
@@ -57,6 +58,9 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 }
 
 func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
+	if strings.TrimSpace(filters.Sort) == "" {
+		filters.Sort = defaultCollectionSort
+	}
 	return s.collectionRepo.GetCollectionList(filters)
 }
 

@@ -94,10 +94,11 @@ type CollectionList struct {
 type CollectionFilter struct {
 	CollectionTypeID int               `form:"collection_type_id"`
 	GradeID          int               `form:"grade_id"`
-	ReleaseTypeID    int               `form:"release_type_id"`
+	ReleaseTypeIDs   []int             `form:"release_type_id"`
 	ManufacturerID   int               `form:"manufacturer_id"`
 	SeriesID         int               `form:"series_id"`
 	Status           COLLECTION_STATUS `form:"status"`
+	Sort             string            `form:"sort"`
 	Limit            int               `form:"limit"`
 	Offset           int               `form:"offset"`
 }
