@@ -69,24 +69,34 @@ func (s *collectionService) GetCollectionFilterDrawer() (collectionEntity.Collec
 }
 
 func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
+	uploadedOnThisRequest := make([]string, 0)
+	cleanupUploaded := true
+	defer func() {
+		if cleanupUploaded && len(uploadedOnThisRequest) > 0 {
+			s.deleteCloudinaryByPublicID(uploadedOnThisRequest)
+		}
+	}()
+
 	log.Printf("[upload] start title=%q grade_id=%d release_type_id=%d manufacturer_id=%d series_id=%d pictures=%d", payload.Title, payload.GradeID, payload.ReleaseTypeID, payload.ManufacturerID, payload.SeriesID, len(payload.Pictures))
 
 	if payload.Cover != nil {
-		coverURL, err := s.uploadSingleImage(payload.Cover, coverUploadFolder)
+		coverURL, err := s.uploadSingleImage(context.Background(), payload.Cover, coverUploadFolder)
 		if err != nil {
 			log.Printf("[upload] cover upload failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
 		}
 		payload.CoverURL = coverURL
+		uploadedOnThisRequest = append(uploadedOnThisRequest, coverURL)
 		log.Printf("[upload] cover uploaded url=%s", payload.CoverURL)
 	}
 
-	pictureURLs, err := s.uploadImageBatch(payload.Pictures, collectionUploadFolder, false)
+	pictureURLs, err := s.uploadImageBatch(context.Background(), payload.Pictures, collectionUploadFolder, false)
 	if err != nil {
 		log.Printf("[upload] picture upload failed: %v", err)
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 	payload.PictureURLs = pictureURLs
+	uploadedOnThisRequest = append(uploadedOnThisRequest, pictureURLs...)
 
 	if len(payload.AddonNames) > 0 || len(payload.AddonPictures) > 0 {
 		if len(payload.AddonNames) != len(payload.AddonPictures) {
@@ -102,12 +112,13 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 			}
 		}
 
-		addonPictureURLs, err := s.uploadImageBatch(payload.AddonPictures, addonUploadFolder, false)
+		addonPictureURLs, err := s.uploadImageBatch(context.Background(), payload.AddonPictures, addonUploadFolder, false)
 		if err != nil {
 			log.Printf("[upload] addon picture upload failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
 		}
 		payload.AddonPictureURLs = addonPictureURLs
+		uploadedOnThisRequest = append(uploadedOnThisRequest, addonPictureURLs...)
 	}
 
 	log.Printf("[upload] saving to db cover_url=%s picture_urls=%d", payload.CoverURL, len(payload.PictureURLs))
@@ -117,6 +128,7 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 	log.Printf("[upload] db save success collection_id=%d", collection.ID)
+	cleanupUploaded = false
 
 	collection, err = s.collectionRepo.GetCollectionByID(collection.ID)
 	if err != nil {
@@ -127,10 +139,19 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 }
 
 func (s *collectionService) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
+	uploadedOnThisRequest := make([]string, 0)
+	cleanupUploaded := true
+	defer func() {
+		if cleanupUploaded && len(uploadedOnThisRequest) > 0 {
+			s.deleteCloudinaryByPublicID(uploadedOnThisRequest)
+		}
+	}()
+
 	log.Printf("[update] start collection_id=%d new_pictures=%d delete_picture_urls=%d", id, len(payload.NewPictures), len(payload.DeletedPictureURLs))
 
 	deletePictureIDs := make([]int, 0)
 	deletePicturePublicIDs := make([]string, 0)
+	deleteCoverPublicIDs := make([]string, 0)
 	if payload.DeletedPictureURLsPresent {
 		currentPictures, err := s.collectionRepo.GetPicturesByCollectionID(id)
 		if err != nil {
@@ -171,20 +192,32 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 	}
 
 	if payload.Cover != nil {
-		coverURL, err := s.uploadSingleImage(payload.Cover, coverUploadFolder)
+		currentCollection, err := s.collectionRepo.GetCollectionByID(id)
+		if err != nil {
+			log.Printf("[update] load current collection failed: %v", err)
+			return collectionEntity.CollectionDetailResponse{}, err
+		}
+
+		coverURL, err := s.uploadSingleImage(context.Background(), payload.Cover, coverUploadFolder)
 		if err != nil {
 			log.Printf("[update] cover upload failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
 		}
 		payload.CoverURL = coverURL
+		uploadedOnThisRequest = append(uploadedOnThisRequest, coverURL)
+
+		if strings.TrimSpace(currentCollection.Cover) != "" {
+			deleteCoverPublicIDs = append(deleteCoverPublicIDs, currentCollection.Cover)
+		}
 	}
 
-	newPictureURLs, err := s.uploadImageBatch(payload.NewPictures, collectionUploadFolder, false)
+	newPictureURLs, err := s.uploadImageBatch(context.Background(), payload.NewPictures, collectionUploadFolder, false)
 	if err != nil {
 		log.Printf("[update] picture upload failed: %v", err)
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 	payload.NewPictureURLs = newPictureURLs
+	uploadedOnThisRequest = append(uploadedOnThisRequest, newPictureURLs...)
 
 	deleteAddonIDs := make([]int, 0)
 	deleteAddonPublicIDs := make([]string, 0)
@@ -257,12 +290,18 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 		}
 
 		if len(payload.UpdateAddonPictures) > 0 {
-			updateAddonPictureURLs, err := s.uploadImageBatch(payload.UpdateAddonPictures, addonUploadFolder, true)
+			updateAddonPictureURLs, err := s.uploadImageBatch(context.Background(), payload.UpdateAddonPictures, addonUploadFolder, true)
 			if err != nil {
 				log.Printf("[update] addon picture upload failed: %v", err)
 				return collectionEntity.CollectionDetailResponse{}, err
 			}
 			payload.UpdateAddonPictureURLs = updateAddonPictureURLs
+			for _, pictureURL := range updateAddonPictureURLs {
+				if strings.TrimSpace(pictureURL) == "" {
+					continue
+				}
+				uploadedOnThisRequest = append(uploadedOnThisRequest, pictureURL)
+			}
 		} else {
 			payload.UpdateAddonPictureURLs = make([]string, len(payload.UpdateAddonIDs))
 		}
@@ -282,19 +321,22 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 			}
 		}
 
-		newAddonPictureURLs, err := s.uploadImageBatch(payload.NewAddonPictures, addonUploadFolder, false)
+		newAddonPictureURLs, err := s.uploadImageBatch(context.Background(), payload.NewAddonPictures, addonUploadFolder, false)
 		if err != nil {
 			log.Printf("[update] addon picture upload failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
 		}
 		payload.NewAddonPictureURLs = newAddonPictureURLs
+		uploadedOnThisRequest = append(uploadedOnThisRequest, newAddonPictureURLs...)
 	}
 
 	if _, err := s.collectionRepo.UpdateCollection(id, payload, deletePictureIDs, deleteAddonIDs); err != nil {
 		log.Printf("[update] db update failed: %v", err)
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
+	cleanupUploaded = false
 
+	s.deleteCloudinaryByPublicID(deleteCoverPublicIDs)
 	s.deleteCloudinaryByPublicID(deletePicturePublicIDs)
 	s.deleteCloudinaryByPublicID(deleteAddonPublicIDs)
 
@@ -320,7 +362,7 @@ func getAddons(collection collectionEntity.Collection) []collectionEntity.Addon 
 	return *collection.Addons
 }
 
-func (s *collectionService) uploadSingleImage(fileHeader *multipart.FileHeader, folder string) (string, error) {
+func (s *collectionService) uploadSingleImage(ctx context.Context, fileHeader *multipart.FileHeader, folder string) (string, error) {
 	if s.cld == nil {
 		return "", helper.ServiceError{ErrorMsg: "cloudinary client is not configured", Code: http.StatusInternalServerError}
 	}
@@ -332,7 +374,7 @@ func (s *collectionService) uploadSingleImage(fileHeader *multipart.FileHeader, 
 	}
 	defer file.Close()
 
-	result, err := s.cld.Upload.Upload(context.Background(), file, uploader.UploadParams{
+	result, err := s.cld.Upload.Upload(ctx, file, uploader.UploadParams{
 		Transformation: "f_auto,q_auto:good,w_1920,c_limit",
 		Folder:         folder,
 	})
@@ -351,10 +393,13 @@ func (s *collectionService) uploadSingleImage(fileHeader *multipart.FileHeader, 
 	return cachePath, nil
 }
 
-func (s *collectionService) uploadImageBatch(files []*multipart.FileHeader, folder string, preserveAlignment bool) ([]string, error) {
+func (s *collectionService) uploadImageBatch(parentCtx context.Context, files []*multipart.FileHeader, folder string, preserveAlignment bool) ([]string, error) {
 	if len(files) == 0 {
 		return []string{}, nil
 	}
+
+	ctx, cancel := context.WithCancel(parentCtx)
+	defer cancel()
 
 	workerCount := uploadWorkerCount
 	if len(files) < workerCount {
@@ -371,24 +416,43 @@ func (s *collectionService) uploadImageBatch(files []*multipart.FileHeader, fold
 	results := make(chan uploadResult, len(files))
 
 	var wg sync.WaitGroup
+	var cancelOnce sync.Once
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for idx := range jobs {
-				if files[idx] == nil {
-					results <- uploadResult{index: idx}
-					continue
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case idx, ok := <-jobs:
+					if !ok {
+						return
+					}
+					if files[idx] == nil {
+						results <- uploadResult{index: idx}
+						continue
+					}
+					url, err := s.uploadSingleImage(ctx, files[idx], folder)
+					if err != nil {
+						cancelOnce.Do(cancel)
+					}
+					results <- uploadResult{index: idx, url: url, err: err}
 				}
-				url, err := s.uploadSingleImage(files[idx], folder)
-				results <- uploadResult{index: idx, url: url, err: err}
 			}
 		}()
 	}
 
 	go func() {
 		for idx := range files {
-			jobs <- idx
+			select {
+			case <-ctx.Done():
+				close(jobs)
+				wg.Wait()
+				close(results)
+				return
+			case jobs <- idx:
+			}
 		}
 		close(jobs)
 		wg.Wait()
@@ -400,11 +464,22 @@ func (s *collectionService) uploadImageBatch(files []*multipart.FileHeader, fold
 	for result := range results {
 		if result.err != nil && firstErr == nil {
 			firstErr = result.err
+			cancelOnce.Do(cancel)
 			continue
 		}
 		ordered[result.index] = result.url
 	}
 	if firstErr != nil {
+		uploadedBeforeFailure := make([]string, 0, len(ordered))
+		for _, value := range ordered {
+			if strings.TrimSpace(value) == "" {
+				continue
+			}
+			uploadedBeforeFailure = append(uploadedBeforeFailure, value)
+		}
+		if len(uploadedBeforeFailure) > 0 {
+			s.deleteCloudinaryByPublicID(uploadedBeforeFailure)
+		}
 		return nil, firstErr
 	}
 
