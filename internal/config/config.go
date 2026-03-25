@@ -71,7 +71,9 @@ func checkConfigFile() error {
 }
 
 func InitConfig() error {
-	checkConfigFile()
+	if err := checkConfigFile(); err != nil {
+		return err
+	}
 
 	viper.SetConfigName("config")
 	viper.SetConfigType("yml")
