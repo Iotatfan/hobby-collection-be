@@ -13,6 +13,7 @@ type UploadCollectionRequest struct {
 	Status           COLLECTION_STATUS       `form:"status"`
 	SeriesID         int                     `form:"series_id"`
 	BuiltAt          time.Time               `form:"built_at" time_format:"2006-01-02T15:04:05Z07:00"`
+	AcquiredAt       time.Time               `form:"acquired_at" time_format:"2006-01-02T15:04:05Z07:00"`
 	Cover            *multipart.FileHeader   `form:"cover"`
 	Pictures         []*multipart.FileHeader `form:"pictures"`
 	AddonNames       []string                `form:"addon_names"`
@@ -31,6 +32,7 @@ type UpdateCollectionRequest struct {
 	Status                    *COLLECTION_STATUS      `form:"status"`
 	SeriesID                  *int                    `form:"series_id"`
 	BuiltAt                   *time.Time              `form:"built_at" time_format:"2006-01-02T15:04:05Z07:00"`
+	AcquiredAt                *time.Time              `form:"acquired_at" time_format:"2006-01-02T15:04:05Z07:00"`
 	Description               *string                 `form:"description"`
 	Cover                     *multipart.FileHeader   `form:"cover"`
 	NewPictures               []*multipart.FileHeader `form:"new_pictures"`
@@ -47,4 +49,16 @@ type UpdateCollectionRequest struct {
 	NewPictureURLs            []string                `form:"-" json:"-"`
 	NewAddonPictureURLs       []string                `form:"-" json:"-"`
 	UpdateAddonPictureURLs    []string                `form:"-" json:"-"`
+}
+
+type CollectionFilterRequest struct {
+	CollectionTypeID int               `form:"collection_type_id"`
+	GradeID          int               `form:"grade_id"`
+	ReleaseTypeIDs   []int             `form:"release_type_id"`
+	ManufacturerID   int               `form:"manufacturer_id"`
+	SeriesID         int               `form:"series_id"`
+	Status           COLLECTION_STATUS `form:"status"`
+	Sort             string            `form:"sort"`
+	Limit            int               `form:"limit"`
+	Offset           int               `form:"offset"`
 }

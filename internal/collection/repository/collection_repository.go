@@ -16,7 +16,7 @@ import (
 
 type CollectionRepository interface {
 	GetCollectionByID(id int) (collectionEntity.Collection, error)
-	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error)
+	GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, error)
 	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
@@ -41,6 +41,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		Title            string                             `gorm:"column:title"`
 		Status           collectionEntity.COLLECTION_STATUS `gorm:"column:status"`
 		BuiltAt          *time.Time                         `gorm:"column:built_at"`
+		AcquiredAt       *time.Time                         `gorm:"column:acquired_at"`
 		Cover            string                             `gorm:"column:cover"`
 		Description      string                             `gorm:"column:description"`
 		TypeID           int                                `gorm:"column:type_id"`
@@ -65,6 +66,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			c.title,
 			c.status,
 			c.built_at,
+			c.acquired_at,
 			c.cover,
 			c.description,
 			ct.id as type_id,
@@ -143,6 +145,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		ManufacturerID: row.ManufacturerID,
 		SeriesID:       row.SeriesID,
 		BuiltAt:        row.BuiltAt,
+		AcquiredAt:     row.AcquiredAt,
 		Cover:          row.Cover,
 		Description:    row.Description,
 		CollectionType: collectionEntity.CollectionType{
@@ -181,6 +184,7 @@ type collectionListItemRow struct {
 	Title           string                             `gorm:"column:title"`
 	Status          collectionEntity.COLLECTION_STATUS `gorm:"column:status"`
 	BuiltAt         *time.Time                         `gorm:"column:built_at"`
+	AcquiredAt      *time.Time                         `gorm:"column:acquired_at"`
 	Cover           string                             `gorm:"column:cover"`
 	TypeID          int                                `gorm:"column:type_id"`
 	TypeName        string                             `gorm:"column:type_name"`
@@ -195,7 +199,7 @@ type collectionListItemRow struct {
 	SeriesName      string                             `gorm:"column:series_name"`
 }
 
-func (r *collectionRepository) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
+func (r *collectionRepository) GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
 	rows := []collectionListItemRow{}
 	db := r.db.Table("collections c").
 		Select("c.id").
@@ -257,6 +261,7 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 			c.title,
 			c.status,
 			c.built_at,
+			c.acquired_at,
 			c.cover,
 			ct.id as type_id,
 			ct.name as type_name,
@@ -302,6 +307,11 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 			localBuiltAt := row.BuiltAt.Local()
 			builtAt = &localBuiltAt
 		}
+		var acquiredAt *time.Time
+		if row.AcquiredAt != nil {
+			localAcquiredAt := row.AcquiredAt.Local()
+			acquiredAt = &localAcquiredAt
+		}
 
 		response.Collections = append(response.Collections, collectionEntity.CollectionListItemResponse{
 			ID:    row.ID,
@@ -310,7 +320,7 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 				ID:                 row.TypeID,
 				CollectionTypeName: row.TypeName,
 				Scale:              row.TypeScale,
-				Grade: collectionEntity.Grade{
+				Grade: collectionEntity.GradeResponse{
 					ID:               row.GradeID,
 					Name:             row.GradeName,
 					ShortName:        row.GradeShortName,
@@ -318,17 +328,18 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 					CollectionTypeID: row.TypeID,
 				},
 			},
-			ReleaseType: collectionEntity.ReleaseType{
+			ReleaseType: collectionEntity.ReleaseTypeResponse{
 				ID:              row.ReleaseTypeID,
 				ReleaseTypeName: row.ReleaseTypeName,
 			},
 			Status: row.Status,
-			Series: collectionEntity.Series{
+			Series: collectionEntity.SeriesResponse{
 				ID:         row.SeriesID,
 				SeriesName: row.SeriesName,
 			},
-			BuiltAt: builtAt,
-			Cover:   row.Cover,
+			BuiltAt:    builtAt,
+			AcquiredAt: acquiredAt,
+			Cover:      row.Cover,
 		})
 	}
 
@@ -340,13 +351,13 @@ func getCollectionListSort(sort string) (string, string) {
 
 	switch sort {
 	case "latest", "latest_built":
-		return "c.built_at DESC NULLS LAST", "c.id DESC"
+		return "COALESCE(c.built_at, c.acquired_at) DESC NULLS LAST", "c.id DESC"
 	case "name", "name_asc":
 		return "c.title ASC", "c.id ASC"
 	case "name_desc":
 		return "c.title DESC", "c.id DESC"
 	default:
-		return "c.built_at DESC NULLS LAST", "c.id DESC"
+		return "COALESCE(c.built_at, c.acquired_at) DESC NULLS LAST", "c.id DESC"
 	}
 }
 
@@ -427,9 +438,29 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 		}
 	}
 
-	drawer.ReleaseTypes = releaseTypes
-	drawer.Manufacturers = manufacturers
-	drawer.Series = series
+	drawer.ReleaseTypes = make([]collectionEntity.ReleaseTypeResponse, 0, len(releaseTypes))
+	for _, releaseType := range releaseTypes {
+		drawer.ReleaseTypes = append(drawer.ReleaseTypes, collectionEntity.ReleaseTypeResponse{
+			ID:              releaseType.ID,
+			ReleaseTypeName: releaseType.ReleaseTypeName,
+		})
+	}
+
+	drawer.Manufacturers = make([]collectionEntity.ManufacturerResponse, 0, len(manufacturers))
+	for _, manufacturer := range manufacturers {
+		drawer.Manufacturers = append(drawer.Manufacturers, collectionEntity.ManufacturerResponse{
+			ID:               manufacturer.ID,
+			ManufacturerName: manufacturer.ManufacturerName,
+		})
+	}
+
+	drawer.Series = make([]collectionEntity.SeriesResponse, 0, len(series))
+	for _, item := range series {
+		drawer.Series = append(drawer.Series, collectionEntity.SeriesResponse{
+			ID:         item.ID,
+			SeriesName: item.SeriesName,
+		})
+	}
 
 	return drawer, nil
 }
@@ -501,6 +532,10 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 	if !payload.BuiltAt.IsZero() {
 		builtAt := payload.BuiltAt
 		collection.BuiltAt = &builtAt
+	}
+	if !payload.AcquiredAt.IsZero() {
+		acquiredAt := payload.AcquiredAt
+		collection.AcquiredAt = &acquiredAt
 	}
 
 	pictures := make([]collectionEntity.Picture, 0, len(payload.PictureURLs))
@@ -594,6 +629,9 @@ func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity
 		}
 		if payload.BuiltAt != nil {
 			updates["built_at"] = *payload.BuiltAt
+		}
+		if payload.AcquiredAt != nil {
+			updates["acquired_at"] = *payload.AcquiredAt
 		}
 		if payload.Description != nil {
 			updates["description"] = *payload.Description

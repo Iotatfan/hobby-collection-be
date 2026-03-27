@@ -21,7 +21,7 @@ import (
 
 type CollectionService interface {
 	GetCollectionByID(id int) (collectionEntity.CollectionDetailResponse, error)
-	GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error)
+	GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
@@ -57,7 +57,7 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 	return mapCollectionReponse(collection, getPictures(collection), getAddons(collection)), nil
 }
 
-func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilter) (collectionEntity.CollectionListResponse, error) {
+func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
 	if strings.TrimSpace(filters.Sort) == "" {
 		filters.Sort = defaultCollectionSort
 	}
@@ -603,11 +603,23 @@ func mapCollectionReponse(collection collectionEntity.Collection, pictures []col
 		builtAt = &localBuiltAt
 	}
 
+	var acquiredAt *time.Time
+	if collection.AcquiredAt != nil {
+		localAcquiredAt := collection.AcquiredAt.Local()
+		acquiredAt = &localAcquiredAt
+	}
+
 	collectionTypeResp := collectionEntity.CollectionTypeResponse{
 		ID:                 collection.CollectionType.ID,
 		CollectionTypeName: collection.CollectionType.CollectionTypeName,
 		Scale:              collection.CollectionType.Scale,
-		Grade:              collection.CollectionType.Grade,
+		Grade: collectionEntity.GradeResponse{
+			ID:               collection.CollectionType.Grade.ID,
+			Name:             collection.CollectionType.Grade.Name,
+			ShortName:        collection.CollectionType.Grade.ShortName,
+			ScaleID:          collection.CollectionType.Grade.ScaleID,
+			CollectionTypeID: collection.CollectionType.Grade.CollectionTypeID,
+		},
 	}
 
 	var picturesResp []string
@@ -615,19 +627,39 @@ func mapCollectionReponse(collection collectionEntity.Collection, pictures []col
 		picturesResp = append(picturesResp, picture.Url)
 	}
 
+	addonsResp := make([]collectionEntity.AddonResponse, 0, len(addons))
+	for _, addon := range addons {
+		addonsResp = append(addonsResp, collectionEntity.AddonResponse{
+			ID:           addon.ID,
+			AddonName:    addon.AddonName,
+			CollectionID: addon.CollectionID,
+			Picture:      addon.Picture,
+		})
+	}
+
 	result := collectionEntity.CollectionDetailResponse{
 		ID:           collection.ID,
 		Title:        collection.Title,
 		Type:         collectionTypeResp,
-		ReleaseType:  collection.ReleaseType,
-		Manufacturer: collection.Manufacturer,
+		ReleaseType: collectionEntity.ReleaseTypeResponse{
+			ID:              collection.ReleaseType.ID,
+			ReleaseTypeName: collection.ReleaseType.ReleaseTypeName,
+		},
+		Manufacturer: collectionEntity.ManufacturerResponse{
+			ID:               collection.Manufacturer.ID,
+			ManufacturerName: collection.Manufacturer.ManufacturerName,
+		},
 		Status:       collection.Status,
-		Series:       collection.Series,
+		Series: collectionEntity.SeriesResponse{
+			ID:         collection.Series.ID,
+			SeriesName: collection.Series.SeriesName,
+		},
 		BuiltAt:      builtAt,
+		AcquiredAt:   acquiredAt,
 		Cover:        collection.Cover,
 		Description:  collection.Description,
 		Pictures:     picturesResp,
-		Addons:       addons,
+		Addons:       addonsResp,
 	}
 
 	return result

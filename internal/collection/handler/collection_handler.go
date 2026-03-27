@@ -37,7 +37,7 @@ func (h *CollectiontHandler) GetCollectionByID(c *gin.Context) {
 }
 
 func (h *CollectiontHandler) GetCollectionList(c *gin.Context) {
-	filters := entity.CollectionFilter{}
+	filters := entity.CollectionFilterRequest{}
 	err := c.ShouldBindQuery(&filters)
 	if err != nil {
 		common.ErrorResponse(c, err)
