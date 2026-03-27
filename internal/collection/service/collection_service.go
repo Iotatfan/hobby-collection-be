@@ -16,7 +16,7 @@ import (
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	collectionEntity "github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	collectionRepository "github.com/iotatfan/hobby-collection-be/internal/collection/repository"
-	"github.com/iotatfan/hobby-collection-be/internal/helper"
+	"github.com/iotatfan/hobby-collection-be/internal/common"
 )
 
 type CollectionService interface {
@@ -104,15 +104,15 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 
 	if len(payload.AddonNames) > 0 || len(payload.AddonPictures) > 0 {
 		if len(payload.AddonNames) != len(payload.AddonPictures) {
-			return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("addon_names and addon_pictures must have the same length")}
+			return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("addon_names and addon_pictures must have the same length")}
 		}
 		for i := range payload.AddonPictures {
 			if payload.AddonPictures[i] == nil {
-				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("addon_pictures contains an empty file")}
+				return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("addon_pictures contains an empty file")}
 			}
 			addonName := strings.TrimSpace(payload.AddonNames[i])
 			if addonName == "" {
-				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("addon_names contains an empty name")}
+				return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("addon_names contains an empty name")}
 			}
 		}
 
@@ -176,7 +176,7 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 		for _, pictureURL := range payload.DeletedPictureURLs {
 			publicID := cloudinaryValueToPublicID(pictureURL)
 			if publicID == "" {
-				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("one or more deleted_picture_urls are invalid")}
+				return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("one or more deleted_picture_urls are invalid")}
 			}
 			if _, seen := seenPublicIDs[publicID]; seen {
 				continue
@@ -185,7 +185,7 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 
 			picture, exists := publicIDToPicture[publicID]
 			if !exists {
-				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("one or more deleted_picture_urls do not belong to this collection")}
+				return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("one or more deleted_picture_urls do not belong to this collection")}
 			}
 
 			deletePictureIDs = append(deletePictureIDs, picture.ID)
@@ -244,7 +244,7 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 		keepIDMap := make(map[int]struct{}, len(payload.ExistingAddonIDs))
 		for _, addonID := range payload.ExistingAddonIDs {
 			if _, exists := currentIDMap[addonID]; !exists {
-				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("one or more existing_addon_ids do not belong to this collection")}
+				return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("one or more existing_addon_ids do not belong to this collection")}
 			}
 			keepIDMap[addonID] = struct{}{}
 		}
@@ -262,10 +262,10 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 
 	if len(payload.UpdateAddonIDs) > 0 {
 		if len(payload.UpdateAddonNames) > 0 && len(payload.UpdateAddonNames) != len(payload.UpdateAddonIDs) {
-			return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("update_addon_names must have the same length as update_addon_ids")}
+			return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("update_addon_names must have the same length as update_addon_ids")}
 		}
 		if len(payload.UpdateAddonPictures) > 0 && len(payload.UpdateAddonPictures) != len(payload.UpdateAddonIDs) {
-			return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("update_addon_pictures must have the same length as update_addon_ids")}
+			return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("update_addon_pictures must have the same length as update_addon_ids")}
 		}
 
 		currentByID := make(map[int]collectionEntity.Addon, len(currentAddons))
@@ -278,12 +278,12 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 			addonID := payload.UpdateAddonIDs[i]
 			current, ok := currentByID[addonID]
 			if !ok {
-				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("one or more update_addon_ids do not belong to this collection")}
+				return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("one or more update_addon_ids do not belong to this collection")}
 			}
 
 			if len(payload.UpdateAddonNames) > 0 {
 				if strings.TrimSpace(payload.UpdateAddonNames[i]) == "" {
-					return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("update_addon_names contains an empty name")}
+					return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("update_addon_names contains an empty name")}
 				}
 			}
 
@@ -313,15 +313,15 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 
 	if len(payload.NewAddonNames) > 0 || len(payload.NewAddonPictures) > 0 {
 		if len(payload.NewAddonNames) != len(payload.NewAddonPictures) {
-			return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("new_addon_names and new_addon_pictures must have the same length")}
+			return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("new_addon_names and new_addon_pictures must have the same length")}
 		}
 		for i := range payload.NewAddonPictures {
 			if payload.NewAddonPictures[i] == nil {
-				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("new_addon_pictures contains an empty file")}
+				return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("new_addon_pictures contains an empty file")}
 			}
 			addonName := strings.TrimSpace(payload.NewAddonNames[i])
 			if addonName == "" {
-				return collectionEntity.CollectionDetailResponse{}, helper.ValError{ErrorMsg: errors.New("new_addon_names contains an empty name")}
+				return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("new_addon_names contains an empty name")}
 			}
 		}
 
@@ -368,13 +368,13 @@ func getAddons(collection collectionEntity.Collection) []collectionEntity.Addon 
 
 func (s *collectionService) uploadSingleImage(ctx context.Context, fileHeader *multipart.FileHeader, folder string) (string, error) {
 	if s.cld == nil {
-		return "", helper.ServiceError{ErrorMsg: "cloudinary client is not configured", Code: http.StatusInternalServerError}
+		return "", common.ServiceError{ErrorMsg: "cloudinary client is not configured", Code: http.StatusInternalServerError}
 	}
 	log.Printf("[upload] uploading file name=%q size=%d", fileHeader.Filename, fileHeader.Size)
 
 	file, err := fileHeader.Open()
 	if err != nil {
-		return "", helper.ServiceError{ErrorMsg: err.Error(), Code: http.StatusBadRequest}
+		return "", common.ServiceError{ErrorMsg: err.Error(), Code: http.StatusBadRequest}
 	}
 	defer file.Close()
 
@@ -383,15 +383,15 @@ func (s *collectionService) uploadSingleImage(ctx context.Context, fileHeader *m
 		Folder:         folder,
 	})
 	if err != nil {
-		return "", helper.ServiceError{ErrorMsg: err.Error(), Code: http.StatusInternalServerError}
+		return "", common.ServiceError{ErrorMsg: err.Error(), Code: http.StatusInternalServerError}
 	}
 	if result.SecureURL == "" {
-		return "", helper.ServiceError{ErrorMsg: errors.New("cloudinary returned empty secure url").Error(), Code: http.StatusInternalServerError}
+		return "", common.ServiceError{ErrorMsg: errors.New("cloudinary returned empty secure url").Error(), Code: http.StatusInternalServerError}
 	}
 
 	cachePath, err := toCloudinaryCachePath(result.SecureURL)
 	if err != nil {
-		return "", helper.ServiceError{ErrorMsg: err.Error(), Code: http.StatusInternalServerError}
+		return "", common.ServiceError{ErrorMsg: err.Error(), Code: http.StatusInternalServerError}
 	}
 
 	return cachePath, nil

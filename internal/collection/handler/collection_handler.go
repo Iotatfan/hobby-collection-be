@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	collectionService "github.com/iotatfan/hobby-collection-be/internal/collection/service"
-	"github.com/iotatfan/hobby-collection-be/internal/helper"
+	"github.com/iotatfan/hobby-collection-be/internal/common"
 )
 
 type CollectiontHandler struct {
@@ -24,55 +24,55 @@ func (h *CollectiontHandler) GetCollectionByID(c *gin.Context) {
 	inputID := c.Param("id")
 	id, err := strconv.Atoi(inputID)
 	if err != nil {
-		helper.ErrorResponse(c, err)
+		common.ErrorResponse(c, err)
 		return
 	}
 
 	collection, err := h.collectionService.GetCollectionByID(id)
 	if err != nil {
-		helper.ErrorResponse(c, err)
+		common.ErrorResponse(c, err)
 		return
 	}
-	helper.SuccessResponse(c, collection, http.StatusOK)
+	common.SuccessResponse(c, collection, http.StatusOK)
 }
 
 func (h *CollectiontHandler) GetCollectionList(c *gin.Context) {
 	filters := entity.CollectionFilter{}
 	err := c.ShouldBindQuery(&filters)
 	if err != nil {
-		helper.ErrorResponse(c, err)
+		common.ErrorResponse(c, err)
 		return
 	}
 	result, err := h.collectionService.GetCollectionList(filters)
 	if err != nil {
-		helper.ErrorResponse(c, err)
+		common.ErrorResponse(c, err)
 		return
 	}
-	helper.SuccessResponse(c, result, http.StatusOK)
+	common.SuccessResponse(c, result, http.StatusOK)
 }
 
 func (h *CollectiontHandler) GetCollectionDrawer(c *gin.Context) {
 	result, err := h.collectionService.GetCollectionDrawer()
 	if err != nil {
-		helper.ErrorResponse(c, err)
+		common.ErrorResponse(c, err)
 		return
 	}
-	helper.SuccessResponse(c, result, http.StatusOK)
+	common.SuccessResponse(c, result, http.StatusOK)
 }
 
 func (h *CollectiontHandler) GetCollectionFilterDrawer(c *gin.Context) {
 	result, err := h.collectionService.GetCollectionFilterDrawer()
 	if err != nil {
-		helper.ErrorResponse(c, err)
+		common.ErrorResponse(c, err)
 		return
 	}
-	helper.SuccessResponse(c, result, http.StatusOK)
+	common.SuccessResponse(c, result, http.StatusOK)
 }
 
 func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 	req := entity.UploadCollectionRequest{}
 	if err := c.ShouldBind(&req); err != nil {
-		helper.ErrorResponse(c, err)
+		common.ErrorResponse(c, err)
 		return
 	}
 
@@ -113,34 +113,34 @@ func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 	}
 
 	if req.Cover == nil {
-		helper.ErrorResponse(c, helper.ValError{ErrorMsg: errors.New("the field Cover is required")})
+		common.ErrorResponse(c, common.ValError{ErrorMsg: errors.New("the field Cover is required")})
 		return
 	}
 	if len(req.Pictures) == 0 {
-		helper.ErrorResponse(c, helper.ValError{ErrorMsg: errors.New("the field Pictures is required")})
+		common.ErrorResponse(c, common.ValError{ErrorMsg: errors.New("the field Pictures is required")})
 		return
 	}
 
 	result, err := h.collectionService.UploadCollection(req)
 	if err != nil {
-		helper.ErrorResponse(c, err)
+		common.ErrorResponse(c, err)
 		return
 	}
 
-	helper.SuccessResponse(c, result, http.StatusCreated)
+	common.SuccessResponse(c, result, http.StatusCreated)
 }
 
 func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 	inputID := c.Param("id")
 	id, err := strconv.Atoi(inputID)
 	if err != nil {
-		helper.ErrorResponse(c, err)
+		common.ErrorResponse(c, err)
 		return
 	}
 
 	req := entity.UpdateCollectionRequest{}
 	if err := c.ShouldBind(&req); err != nil {
-		helper.ErrorResponse(c, err)
+		common.ErrorResponse(c, err)
 		return
 	}
 
@@ -206,7 +206,7 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 			}
 			addonID, parseErr := strconv.Atoi(trimmed)
 			if parseErr != nil {
-				helper.ErrorResponse(c, parseErr)
+				common.ErrorResponse(c, parseErr)
 				return
 			}
 			req.UpdateAddonIDs = append(req.UpdateAddonIDs, addonID)
@@ -269,7 +269,7 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 			}
 			addonID, parseErr := strconv.Atoi(trimmed)
 			if parseErr != nil {
-				helper.ErrorResponse(c, parseErr)
+				common.ErrorResponse(c, parseErr)
 				return
 			}
 			req.ExistingAddonIDs = append(req.ExistingAddonIDs, addonID)
@@ -278,9 +278,9 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 
 	result, err := h.collectionService.UpdateCollection(id, req)
 	if err != nil {
-		helper.ErrorResponse(c, err)
+		common.ErrorResponse(c, err)
 		return
 	}
 
-	helper.SuccessResponse(c, result, http.StatusOK)
+	common.SuccessResponse(c, result, http.StatusOK)
 }

@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/iotatfan/hobby-collection-be/internal/common"
 	"github.com/iotatfan/hobby-collection-be/internal/config"
-	"github.com/iotatfan/hobby-collection-be/internal/helper"
 	"github.com/iotatfan/hobby-collection-be/internal/text"
 )
 
@@ -31,33 +31,33 @@ func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			helper.ErrorResponse(c, helper.JWTError{ErrorMsg: text.NoAuth})
+			common.ErrorResponse(c, common.JWTError{ErrorMsg: text.NoAuth})
 			c.Abort()
 			return
 		}
 
 		tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 		if tokenString == "" || tokenString == authHeader {
-			helper.ErrorResponse(c, helper.JWTError{ErrorMsg: text.NoAuth})
+			common.ErrorResponse(c, common.JWTError{ErrorMsg: text.NoAuth})
 			c.Abort()
 			return
 		}
 
 		secret := config.GetConfig().JWT.Secret
 		if secret == "" {
-			helper.ErrorResponse(c, helper.ServiceError{ErrorMsg: "jwt secret is not configured", Code: http.StatusInternalServerError})
+			common.ErrorResponse(c, common.ServiceError{ErrorMsg: "jwt secret is not configured", Code: http.StatusInternalServerError})
 			c.Abort()
 			return
 		}
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, helper.JWTError{ErrorMsg: text.InvToken}
+				return nil, common.JWTError{ErrorMsg: text.InvToken}
 			}
 			return []byte(secret), nil
 		})
 		if err != nil || token == nil || !token.Valid {
-			helper.ErrorResponse(c, helper.JWTError{ErrorMsg: text.InvToken})
+			common.ErrorResponse(c, common.JWTError{ErrorMsg: text.InvToken})
 			c.Abort()
 			return
 		}

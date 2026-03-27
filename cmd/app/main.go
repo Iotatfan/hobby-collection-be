@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/iotatfan/hobby-collection-be/internal/collection"
 	"github.com/iotatfan/hobby-collection-be/internal/config"
-	"github.com/iotatfan/hobby-collection-be/internal/handle"
 	"github.com/iotatfan/hobby-collection-be/internal/middleware"
-	"github.com/iotatfan/hobby-collection-be/internal/route"
+	"github.com/iotatfan/hobby-collection-be/internal/router"
 	"github.com/iotatfan/hobby-collection-be/pkg/database/gorm"
 	"github.com/iotatfan/hobby-collection-be/pkg/storage/cloud"
 )
@@ -34,8 +34,8 @@ func handleRequests() {
 	g := gin.Default()
 	g.Use(middleware.CORS())
 
-	route.SetDefaultRoute(g)
-	handle.SetupCollection(g, db, cld)
+	router.SetDefaultRoute(g)
+	collection.Register(g, db, cld)
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", config.GetConfig().Server.Port),

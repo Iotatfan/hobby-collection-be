@@ -1,11 +1,11 @@
-package route
+package router
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/iotatfan/hobby-collection-be/internal/helper"
+	"github.com/iotatfan/hobby-collection-be/internal/common"
 )
 
 func SetDefaultRoute(g *gin.Engine) {
-	g.NoRoute(helper.NoRouteHandler)
+	g.NoRoute(common.NoRouteHandler)
 	g.Static("/docs", "./dist")
 }

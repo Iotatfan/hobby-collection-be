@@ -1,4 +1,4 @@
-package helper
+package common
 
 type DBError struct {
 	ErrorMsg error

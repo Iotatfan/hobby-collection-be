@@ -3,7 +3,7 @@ package entity
 import (
 	"time"
 
-	"github.com/iotatfan/hobby-collection-be/internal/helper"
+	"github.com/iotatfan/hobby-collection-be/internal/common"
 )
 
 // Table
@@ -24,7 +24,7 @@ type Collection struct {
 	Pictures       *[]Picture        `gorm:"foreignKey:CollectionID" json:"pictures"`
 	Addons         *[]Addon          `gorm:"foreignKey:CollectionID" json:"addons"`
 	Description    string
-	helper.Model   `gorm:"embedded"`
+	common.Model   `gorm:"embedded"`
 }
 
 type Addon struct {
@@ -32,7 +32,7 @@ type Addon struct {
 	AddonName    string `gorm:"column:addon_name" json:"addon_name" binding:"required"`
 	CollectionID int    `gorm:"column:collection_id" json:"collection_id" binding:"required"`
 	Picture      string `gorm:"column:picture" json:"picture" binding:"required"`
-	helper.Model `gorm:"embedded"`
+	common.Model `gorm:"embedded"`
 }
 
 type CollectionType struct {
@@ -41,7 +41,7 @@ type CollectionType struct {
 	Scale              string `gorm:"-" json:"scale"`
 	Grade              Grade  `gorm:"foreignKey:CollectionTypeID;references:ID" json:"grade"`
 
-	helper.Model `gorm:"embedded"`
+	common.Model `gorm:"embedded"`
 }
 
 type Grade struct {
@@ -51,38 +51,38 @@ type Grade struct {
 	ScaleID          int    `gorm:"column:scale_id" json:"scale_id"`
 	Scale            Scale  `gorm:"foreignKey:ScaleID" json:"scale_data"`
 	CollectionTypeID int    `gorm:"column:collection_type_id" json:"collection_type_id"`
-	helper.Model     `gorm:"embedded"`
+	common.Model     `gorm:"embedded"`
 }
 
 type Scale struct {
 	ID           int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	Name         string `gorm:"column:name" json:"name" binding:"required"`
-	helper.Model `gorm:"embedded"`
+	common.Model `gorm:"embedded"`
 }
 
 type ReleaseType struct {
 	ID              int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	ReleaseTypeName string `gorm:"column:name" json:"name" binding:"required"`
-	helper.Model    `gorm:"embedded"`
+	common.Model    `gorm:"embedded"`
 }
 
 type Series struct {
 	ID           int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	SeriesName   string `gorm:"column:name" json:"name" binding:"required"`
-	helper.Model `gorm:"embedded"`
+	common.Model `gorm:"embedded"`
 }
 
 type Picture struct {
 	ID           int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	CollectionID int    `gorm:"column:collection_id" json:"collection_id" binding:"required"`
 	Url          string `gorm:"column:url" json:"url" binding:"required"`
-	helper.Model `gorm:"embedded"`
+	common.Model `gorm:"embedded"`
 }
 
 type Manufacturer struct {
 	ID               int    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	ManufacturerName string `gorm:"column:name" json:"name" binding:"required"`
-	helper.Model     `gorm:"embedded"`
+	common.Model     `gorm:"embedded"`
 }
 
 // Non Table

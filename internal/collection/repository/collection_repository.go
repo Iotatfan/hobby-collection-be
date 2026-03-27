@@ -6,9 +6,10 @@ import (
 	"sync"
 	"time"
 
-	collectionEntity "github.com/iotatfan/hobby-collection-be/internal/collection/entity"
-	"github.com/iotatfan/hobby-collection-be/internal/helper"
 	"strings"
+
+	collectionEntity "github.com/iotatfan/hobby-collection-be/internal/collection/entity"
+	"github.com/iotatfan/hobby-collection-be/internal/common"
 
 	"gorm.io/gorm"
 )
@@ -90,10 +91,10 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		Limit(1).
 		Scan(&row)
 	if result.Error != nil {
-		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: result.Error}
+		return collectionEntity.Collection{}, common.DBError{ErrorMsg: result.Error}
 	}
 	if result.RowsAffected == 0 {
-		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: gorm.ErrRecordNotFound}
+		return collectionEntity.Collection{}, common.DBError{ErrorMsg: gorm.ErrRecordNotFound}
 	}
 
 	pictures := []collectionEntity.Picture{}
@@ -125,7 +126,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 
 	wg.Wait()
 	if picturesErr != nil || addonsErr != nil {
-		return collectionEntity.Collection{}, helper.DBError{
+		return collectionEntity.Collection{}, common.DBError{
 			ErrorMsg: errors.Join(
 				wrapErr("load pictures", picturesErr),
 				wrapErr("load addons", addonsErr),
@@ -242,7 +243,7 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 		Offset(offset).
 		Pluck("c.id", &ids)
 	if result.Error != nil {
-		return collectionEntity.CollectionListResponse{}, helper.DBError{ErrorMsg: result.Error}
+		return collectionEntity.CollectionListResponse{}, common.DBError{ErrorMsg: result.Error}
 	}
 	if len(ids) == 0 {
 		return collectionEntity.CollectionListResponse{
@@ -279,7 +280,7 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 		Order(orderBy2).
 		Scan(&rows)
 	if result.Error != nil {
-		return collectionEntity.CollectionListResponse{}, helper.DBError{ErrorMsg: result.Error}
+		return collectionEntity.CollectionListResponse{}, common.DBError{ErrorMsg: result.Error}
 	}
 
 	rowByID := make(map[int]collectionListItemRow, len(rows))
@@ -371,7 +372,7 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 		Where("g.deleted_at IS NULL").
 		Order("ct.name ASC, g.short_name ASC, s.name ASC").
 		Find(&grades).Error; err != nil {
-		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{ErrorMsg: err}
+		return collectionEntity.CollectionDrawerResponse{}, common.DBError{ErrorMsg: err}
 	}
 
 	drawer.Grades = make([]collectionEntity.GradeDrawerItem, 0, len(grades))
@@ -417,7 +418,7 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 
 	drawerWG.Wait()
 	if releaseTypesErr != nil || manufacturersErr != nil || seriesErr != nil {
-		return collectionEntity.CollectionDrawerResponse{}, helper.DBError{
+		return collectionEntity.CollectionDrawerResponse{}, common.DBError{
 			ErrorMsg: errors.Join(
 				wrapErr("load release types", releaseTypesErr),
 				wrapErr("load manufacturers", manufacturersErr),
@@ -447,7 +448,7 @@ func (r *collectionRepository) GetCollectionFilterDrawer() (collectionEntity.Col
 		Where("deleted_at IS NULL").
 		Order("name ASC").
 		Find(&rows).Error; err != nil {
-		return collectionEntity.CollectionFilterDrawerResponse{}, helper.DBError{ErrorMsg: err}
+		return collectionEntity.CollectionFilterDrawerResponse{}, common.DBError{ErrorMsg: err}
 	}
 
 	drawer.CollectionTypes = make([]collectionEntity.CollectionTypeFilterItem, 0, len(rows))
@@ -468,7 +469,7 @@ func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEn
 		Where("collection_id = ? AND deleted_at IS NULL", id).
 		Find(&pictures).Error
 	if err != nil {
-		return []collectionEntity.Picture{}, helper.DBError{ErrorMsg: err}
+		return []collectionEntity.Picture{}, common.DBError{ErrorMsg: err}
 	}
 	return pictures, nil
 }
@@ -480,7 +481,7 @@ func (r *collectionRepository) GetAddonsByCollectionID(id int) ([]collectionEnti
 		Where("collection_id = ? AND deleted_at IS NULL", id).
 		Find(&addons).Error
 	if err != nil {
-		return []collectionEntity.Addon{}, helper.DBError{ErrorMsg: err}
+		return []collectionEntity.Addon{}, common.DBError{ErrorMsg: err}
 	}
 	return addons, nil
 }
@@ -551,7 +552,7 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 		return nil
 	})
 	if err != nil {
-		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
+		return collectionEntity.Collection{}, common.DBError{ErrorMsg: err}
 	}
 
 	return collection, nil
@@ -694,10 +695,10 @@ func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity
 		return nil
 	})
 	if err != nil {
-		if valErr, ok := err.(helper.ValError); ok {
+		if valErr, ok := err.(common.ValError); ok {
 			return collectionEntity.Collection{}, valErr
 		}
-		return collectionEntity.Collection{}, helper.DBError{ErrorMsg: err}
+		return collectionEntity.Collection{}, common.DBError{ErrorMsg: err}
 	}
 
 	return collection, nil
