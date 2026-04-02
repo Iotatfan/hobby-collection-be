@@ -96,8 +96,8 @@ type SeriesResponse struct {
 }
 
 type AddonResponse struct {
-	ID           int    `json:"id"`
-	AddonName    string `json:"addon_name"`
-	CollectionID int    `json:"collection_id"`
-	Picture      string `json:"picture"`
+	ID           int                  `json:"id"`
+	AddonName    string               `json:"name"`
+	CollectionID int                  `json:"collection_id"`
+	Manufacturer ManufacturerResponse `json:"manufacturer"`
 }

@@ -29,11 +29,12 @@ type Collection struct {
 }
 
 type Addon struct {
-	ID           int    `gorm:"primaryKey;autoIncrement;column:id"`
-	AddonName    string `gorm:"column:addon_name"`
-	CollectionID int    `gorm:"column:collection_id"`
-	Picture      string `gorm:"column:picture"`
-	common.Model `gorm:"embedded"`
+	ID             int          `gorm:"primaryKey;autoIncrement;column:id"`
+	AddonName      string       `gorm:"column:addon_name"`
+	ManufacturerID int          `gorm:"column:manufacturer"`
+	Manufacturer   Manufacturer `gorm:"foreignKey:ManufacturerID;default:0"`
+	CollectionID   int          `gorm:"column:collection_id"`
+	common.Model   `gorm:"embedded"`
 }
 
 type CollectionType struct {
@@ -41,8 +42,7 @@ type CollectionType struct {
 	CollectionTypeName string `gorm:"column:name"`
 	Scale              string `gorm:"-"`
 	Grade              Grade  `gorm:"foreignKey:CollectionTypeID;references:ID"`
-
-	common.Model `gorm:"embedded"`
+	common.Model       `gorm:"embedded"`
 }
 
 type Grade struct {
