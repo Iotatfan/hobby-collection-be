@@ -288,6 +288,9 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 			if !ok {
 				return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("one or more update_addon_ids do not belong to this collection")}
 			}
+			if _, addonIsForDelete := deleteAddonIDMap[addonID]; addonIsForDelete {
+				return collectionEntity.CollectionDetailResponse{}, common.ValError{ErrorMsg: errors.New("one or more update_addon_ids overlap with addons scheduled for deletion")}
+			}
 
 			if len(payload.UpdateAddonNames) > 0 {
 				if strings.TrimSpace(payload.UpdateAddonNames[i]) == "" {
@@ -621,9 +624,9 @@ func mapCollectionReponse(collection collectionEntity.Collection, pictures []col
 	}
 
 	result := collectionEntity.CollectionDetailResponse{
-		ID:           collection.ID,
-		Title:        collection.Title,
-		Type:         collectionTypeResp,
+		ID:    collection.ID,
+		Title: collection.Title,
+		Type:  collectionTypeResp,
 		ReleaseType: collectionEntity.ReleaseTypeResponse{
 			ID:              collection.ReleaseType.ID,
 			ReleaseTypeName: collection.ReleaseType.ReleaseTypeName,
@@ -632,17 +635,17 @@ func mapCollectionReponse(collection collectionEntity.Collection, pictures []col
 			ID:               collection.Manufacturer.ID,
 			ManufacturerName: collection.Manufacturer.ManufacturerName,
 		},
-		Status:       collection.Status,
+		Status: collection.Status,
 		Series: collectionEntity.SeriesResponse{
 			ID:         collection.Series.ID,
 			SeriesName: collection.Series.SeriesName,
 		},
-		BuiltAt:      builtAt,
-		AcquiredAt:   acquiredAt,
-		Cover:        collection.Cover,
-		Description:  collection.Description,
-		Pictures:     picturesResp,
-		Addons:       addonsResp,
+		BuiltAt:     builtAt,
+		AcquiredAt:  acquiredAt,
+		Cover:       collection.Cover,
+		Description: collection.Description,
+		Pictures:    picturesResp,
+		Addons:      addonsResp,
 	}
 
 	return result
