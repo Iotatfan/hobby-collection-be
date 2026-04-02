@@ -119,7 +119,10 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 	go func() {
 		defer wg.Done()
 		addonsErr = r.db.Model(&collectionEntity.Addon{}).
-			Select("id", "addon_name", "collection_id", "picture", "created_at", "updated_at").
+			Select("id", "addon_name", "collection_id", "manufacturer", "created_at", "updated_at").
+			Preload("Manufacturer", func(db *gorm.DB) *gorm.DB {
+				return db.Select("id", "name")
+			}).
 			Where("collection_id = ? AND deleted_at IS NULL", id).
 			Order("created_at DESC").
 			Order("id DESC").
@@ -508,7 +511,7 @@ func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEn
 func (r *collectionRepository) GetAddonsByCollectionID(id int) ([]collectionEntity.Addon, error) {
 	addons := []collectionEntity.Addon{}
 	err := r.db.Model(&collectionEntity.Addon{}).
-		Select("id", "addon_name", "collection_id", "picture", "created_at", "updated_at").
+		Select("id", "addon_name", "collection_id", "manufacturer", "created_at", "updated_at").
 		Where("collection_id = ? AND deleted_at IS NULL", id).
 		Find(&addons).Error
 	if err != nil {
@@ -547,16 +550,19 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 	}
 
 	addons := make([]collectionEntity.Addon, 0, len(payload.AddonNames))
-	if len(payload.AddonNames) > 0 && len(payload.AddonNames) == len(payload.AddonPictureURLs) {
+	if len(payload.AddonNames) > 0 {
 		for i := range payload.AddonNames {
 			name := strings.TrimSpace(payload.AddonNames[i])
-			pic := payload.AddonPictureURLs[i]
-			if name == "" || pic == "" {
+			if name == "" {
 				continue
 			}
+			manufacturerID := 0
+			if len(payload.AddonManufacturerID) == len(payload.AddonNames) {
+				manufacturerID = payload.AddonManufacturerID[i]
+			}
 			addons = append(addons, collectionEntity.Addon{
-				AddonName: name,
-				Picture:   pic,
+				AddonName:      name,
+				ManufacturerID: manufacturerID,
 			})
 		}
 	}
@@ -691,11 +697,8 @@ func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity
 						update["addon_name"] = name
 					}
 				}
-				if len(payload.UpdateAddonPictureURLs) == len(payload.UpdateAddonIDs) {
-					pic := strings.TrimSpace(payload.UpdateAddonPictureURLs[i])
-					if pic != "" {
-						update["picture"] = pic
-					}
+				if len(payload.UpdateAddonManufacturerID) == len(payload.UpdateAddonIDs) {
+					update["manufacturer"] = payload.UpdateAddonManufacturerID[i]
 				}
 				if len(update) == 0 {
 					continue
@@ -709,18 +712,21 @@ func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity
 			}
 		}
 
-		if len(payload.NewAddonNames) > 0 && len(payload.NewAddonNames) == len(payload.NewAddonPictureURLs) {
+		if len(payload.NewAddonNames) > 0 {
 			newAddons := make([]collectionEntity.Addon, 0, len(payload.NewAddonNames))
 			for i := range payload.NewAddonNames {
 				name := strings.TrimSpace(payload.NewAddonNames[i])
-				pic := payload.NewAddonPictureURLs[i]
-				if name == "" || pic == "" {
+				if name == "" {
 					continue
 				}
+				manufacturerID := 0
+				if len(payload.NewAddonManufacturerID) == len(payload.NewAddonNames) {
+					manufacturerID = payload.NewAddonManufacturerID[i]
+				}
 				newAddons = append(newAddons, collectionEntity.Addon{
-					CollectionID: id,
-					AddonName:    name,
-					Picture:      pic,
+					CollectionID:   id,
+					AddonName:      name,
+					ManufacturerID: manufacturerID,
 				})
 			}
 			if len(newAddons) > 0 {

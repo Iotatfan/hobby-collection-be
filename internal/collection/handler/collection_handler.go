@@ -89,13 +89,6 @@ func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 		if pictures, ok := form.File["pictures[]"]; ok && len(pictures) > 0 {
 			req.Pictures = append(req.Pictures, pictures...)
 		}
-
-		if addonPictures, ok := form.File["addon_pictures"]; ok && len(addonPictures) > 0 {
-			req.AddonPictures = addonPictures
-		}
-		if addonPictures, ok := form.File["addon_pictures[]"]; ok && len(addonPictures) > 0 {
-			req.AddonPictures = append(req.AddonPictures, addonPictures...)
-		}
 	}
 
 	addonNames, hasAddonNames := c.GetPostFormArray("addon_names")
@@ -110,6 +103,32 @@ func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 	}
 	if hasAddonNames {
 		req.AddonNames = addonNames
+	}
+
+	addonManufacturerIDsRaw, hasAddonManufacturerIDs := c.GetPostFormArray("addons_manufacturer_id")
+	if !hasAddonManufacturerIDs {
+		addonManufacturerIDsRaw, hasAddonManufacturerIDs = c.GetPostFormArray("addons_manufacturer_id[]")
+	}
+	if !hasAddonManufacturerIDs {
+		if raw, exists := c.GetPostForm("addons_manufacturer_id"); exists {
+			hasAddonManufacturerIDs = true
+			addonManufacturerIDsRaw = strings.Split(raw, ",")
+		}
+	}
+	if hasAddonManufacturerIDs {
+		req.AddonManufacturerID = make([]int, 0, len(addonManufacturerIDsRaw))
+		for _, v := range addonManufacturerIDsRaw {
+			trimmed := strings.TrimSpace(v)
+			if trimmed == "" {
+				continue
+			}
+			manufacturerID, parseErr := strconv.Atoi(trimmed)
+			if parseErr != nil {
+				common.ErrorResponse(c, parseErr)
+				return
+			}
+			req.AddonManufacturerID = append(req.AddonManufacturerID, manufacturerID)
+		}
 	}
 
 	if req.Cover == nil {
@@ -157,20 +176,6 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 		if pictures, ok := form.File["new_pictures[]"]; ok && len(pictures) > 0 {
 			req.NewPictures = append(req.NewPictures, pictures...)
 		}
-
-		if addonPictures, ok := form.File["new_addon_pictures"]; ok && len(addonPictures) > 0 {
-			req.NewAddonPictures = addonPictures
-		}
-		if addonPictures, ok := form.File["new_addon_pictures[]"]; ok && len(addonPictures) > 0 {
-			req.NewAddonPictures = append(req.NewAddonPictures, addonPictures...)
-		}
-
-		if addonPictures, ok := form.File["update_addon_pictures"]; ok && len(addonPictures) > 0 {
-			req.UpdateAddonPictures = addonPictures
-		}
-		if addonPictures, ok := form.File["update_addon_pictures[]"]; ok && len(addonPictures) > 0 {
-			req.UpdateAddonPictures = append(req.UpdateAddonPictures, addonPictures...)
-		}
 	}
 
 	newAddonNames, hasNewAddonNames := c.GetPostFormArray("new_addon_names")
@@ -185,6 +190,32 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 	}
 	if hasNewAddonNames {
 		req.NewAddonNames = newAddonNames
+	}
+
+	newAddonManufacturerIDsRaw, hasNewAddonManufacturerIDs := c.GetPostFormArray("new_addons_manufacturer_id")
+	if !hasNewAddonManufacturerIDs {
+		newAddonManufacturerIDsRaw, hasNewAddonManufacturerIDs = c.GetPostFormArray("new_addons_manufacturer_id[]")
+	}
+	if !hasNewAddonManufacturerIDs {
+		if raw, exists := c.GetPostForm("new_addons_manufacturer_id"); exists {
+			hasNewAddonManufacturerIDs = true
+			newAddonManufacturerIDsRaw = strings.Split(raw, ",")
+		}
+	}
+	if hasNewAddonManufacturerIDs {
+		req.NewAddonManufacturerID = make([]int, 0, len(newAddonManufacturerIDsRaw))
+		for _, v := range newAddonManufacturerIDsRaw {
+			trimmed := strings.TrimSpace(v)
+			if trimmed == "" {
+				continue
+			}
+			manufacturerID, parseErr := strconv.Atoi(trimmed)
+			if parseErr != nil {
+				common.ErrorResponse(c, parseErr)
+				return
+			}
+			req.NewAddonManufacturerID = append(req.NewAddonManufacturerID, manufacturerID)
+		}
 	}
 
 	updateAddonIDsRaw, hasUpdateAddonIDs := c.GetPostFormArray("update_addon_ids")
@@ -225,6 +256,32 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 	}
 	if hasUpdateAddonNames {
 		req.UpdateAddonNames = updateAddonNames
+	}
+
+	updateAddonManufacturerIDsRaw, hasUpdateAddonManufacturerIDs := c.GetPostFormArray("update_addons_manufacturer_id")
+	if !hasUpdateAddonManufacturerIDs {
+		updateAddonManufacturerIDsRaw, hasUpdateAddonManufacturerIDs = c.GetPostFormArray("update_addons_manufacturer_id[]")
+	}
+	if !hasUpdateAddonManufacturerIDs {
+		if raw, exists := c.GetPostForm("update_addons_manufacturer_id"); exists {
+			hasUpdateAddonManufacturerIDs = true
+			updateAddonManufacturerIDsRaw = strings.Split(raw, ",")
+		}
+	}
+	if hasUpdateAddonManufacturerIDs {
+		req.UpdateAddonManufacturerID = make([]int, 0, len(updateAddonManufacturerIDsRaw))
+		for _, v := range updateAddonManufacturerIDsRaw {
+			trimmed := strings.TrimSpace(v)
+			if trimmed == "" {
+				continue
+			}
+			manufacturerID, parseErr := strconv.Atoi(trimmed)
+			if parseErr != nil {
+				common.ErrorResponse(c, parseErr)
+				return
+			}
+			req.UpdateAddonManufacturerID = append(req.UpdateAddonManufacturerID, manufacturerID)
+		}
 	}
 
 	deletedURLs, hasDeletedURLs := c.GetPostFormArray("deleted_picture_urls")
@@ -273,6 +330,33 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 				return
 			}
 			req.ExistingAddonIDs = append(req.ExistingAddonIDs, addonID)
+		}
+	}
+
+	deletedAddonIDsRaw, hasDeletedAddonIDs := c.GetPostFormArray("deleted_addon_ids")
+	if !hasDeletedAddonIDs {
+		deletedAddonIDsRaw, hasDeletedAddonIDs = c.GetPostFormArray("deleted_addon_ids[]")
+	}
+	if !hasDeletedAddonIDs {
+		if raw, exists := c.GetPostForm("deleted_addon_ids"); exists {
+			hasDeletedAddonIDs = true
+			deletedAddonIDsRaw = strings.Split(raw, ",")
+		}
+	}
+	if hasDeletedAddonIDs {
+		req.DeletedAddonIDsPresent = true
+		req.DeletedAddonIDs = make([]int, 0, len(deletedAddonIDsRaw))
+		for _, v := range deletedAddonIDsRaw {
+			trimmed := strings.TrimSpace(v)
+			if trimmed == "" {
+				continue
+			}
+			addonID, parseErr := strconv.Atoi(trimmed)
+			if parseErr != nil {
+				common.ErrorResponse(c, parseErr)
+				return
+			}
+			req.DeletedAddonIDs = append(req.DeletedAddonIDs, addonID)
 		}
 	}
 
