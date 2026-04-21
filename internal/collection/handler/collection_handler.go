@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -76,59 +77,21 @@ func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 		return
 	}
 
-	cover, err := c.FormFile("cover")
-	if err == nil {
-		req.Cover = cover
-	}
+	req.Cover = readFormFileIfExists(c, "cover")
+	req.Pictures = readMultipartFiles(c, "pictures", "pictures[]")
 
-	form, err := c.MultipartForm()
-	if err == nil && form != nil {
-		if pictures, ok := form.File["pictures"]; ok && len(pictures) > 0 {
-			req.Pictures = pictures
-		}
-		if pictures, ok := form.File["pictures[]"]; ok && len(pictures) > 0 {
-			req.Pictures = append(req.Pictures, pictures...)
-		}
-	}
-
-	addonNames, hasAddonNames := c.GetPostFormArray("addon_names")
-	if !hasAddonNames {
-		addonNames, hasAddonNames = c.GetPostFormArray("addon_names[]")
-	}
-	if !hasAddonNames {
-		if raw, exists := c.GetPostForm("addon_names"); exists {
-			hasAddonNames = true
-			addonNames = strings.Split(raw, ",")
-		}
-	}
+	addonNames, hasAddonNames := readFlexibleFormArray(c, "addon_names")
 	if hasAddonNames {
 		req.AddonNames = addonNames
 	}
 
-	addonManufacturerIDsRaw, hasAddonManufacturerIDs := c.GetPostFormArray("addons_manufacturer_id")
-	if !hasAddonManufacturerIDs {
-		addonManufacturerIDsRaw, hasAddonManufacturerIDs = c.GetPostFormArray("addons_manufacturer_id[]")
-	}
-	if !hasAddonManufacturerIDs {
-		if raw, exists := c.GetPostForm("addons_manufacturer_id"); exists {
-			hasAddonManufacturerIDs = true
-			addonManufacturerIDsRaw = strings.Split(raw, ",")
-		}
+	addonManufacturerIDs, hasAddonManufacturerIDs, err := parseFlexibleIntFormArray(c, "addons_manufacturer_id")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
 	}
 	if hasAddonManufacturerIDs {
-		req.AddonManufacturerID = make([]int, 0, len(addonManufacturerIDsRaw))
-		for _, v := range addonManufacturerIDsRaw {
-			trimmed := strings.TrimSpace(v)
-			if trimmed == "" {
-				continue
-			}
-			manufacturerID, parseErr := strconv.Atoi(trimmed)
-			if parseErr != nil {
-				common.ErrorResponse(c, parseErr)
-				return
-			}
-			req.AddonManufacturerID = append(req.AddonManufacturerID, manufacturerID)
-		}
+		req.AddonManufacturerID = addonManufacturerIDs
 	}
 
 	if req.Cover == nil {
@@ -163,201 +126,70 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 		return
 	}
 
-	cover, err := c.FormFile("cover")
-	if err == nil {
-		req.Cover = cover
-	}
+	req.Cover = readFormFileIfExists(c, "cover")
+	req.NewPictures = readMultipartFiles(c, "new_pictures", "new_pictures[]")
 
-	form, err := c.MultipartForm()
-	if err == nil && form != nil {
-		if pictures, ok := form.File["new_pictures"]; ok && len(pictures) > 0 {
-			req.NewPictures = pictures
-		}
-		if pictures, ok := form.File["new_pictures[]"]; ok && len(pictures) > 0 {
-			req.NewPictures = append(req.NewPictures, pictures...)
-		}
-	}
-
-	newAddonNames, hasNewAddonNames := c.GetPostFormArray("new_addon_names")
-	if !hasNewAddonNames {
-		newAddonNames, hasNewAddonNames = c.GetPostFormArray("new_addon_names[]")
-	}
-	if !hasNewAddonNames {
-		if raw, exists := c.GetPostForm("new_addon_names"); exists {
-			hasNewAddonNames = true
-			newAddonNames = strings.Split(raw, ",")
-		}
-	}
+	newAddonNames, hasNewAddonNames := readFlexibleFormArray(c, "new_addon_names")
 	if hasNewAddonNames {
 		req.NewAddonNames = newAddonNames
 	}
 
-	newAddonManufacturerIDsRaw, hasNewAddonManufacturerIDs := c.GetPostFormArray("new_addons_manufacturer_id")
-	if !hasNewAddonManufacturerIDs {
-		newAddonManufacturerIDsRaw, hasNewAddonManufacturerIDs = c.GetPostFormArray("new_addons_manufacturer_id[]")
-	}
-	if !hasNewAddonManufacturerIDs {
-		if raw, exists := c.GetPostForm("new_addons_manufacturer_id"); exists {
-			hasNewAddonManufacturerIDs = true
-			newAddonManufacturerIDsRaw = strings.Split(raw, ",")
-		}
+	newAddonManufacturerIDs, hasNewAddonManufacturerIDs, err := parseFlexibleIntFormArray(c, "new_addons_manufacturer_id")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
 	}
 	if hasNewAddonManufacturerIDs {
-		req.NewAddonManufacturerID = make([]int, 0, len(newAddonManufacturerIDsRaw))
-		for _, v := range newAddonManufacturerIDsRaw {
-			trimmed := strings.TrimSpace(v)
-			if trimmed == "" {
-				continue
-			}
-			manufacturerID, parseErr := strconv.Atoi(trimmed)
-			if parseErr != nil {
-				common.ErrorResponse(c, parseErr)
-				return
-			}
-			req.NewAddonManufacturerID = append(req.NewAddonManufacturerID, manufacturerID)
-		}
+		req.NewAddonManufacturerID = newAddonManufacturerIDs
 	}
 
-	updateAddonIDsRaw, hasUpdateAddonIDs := c.GetPostFormArray("update_addon_ids")
-	if !hasUpdateAddonIDs {
-		updateAddonIDsRaw, hasUpdateAddonIDs = c.GetPostFormArray("update_addon_ids[]")
-	}
-	if !hasUpdateAddonIDs {
-		if raw, exists := c.GetPostForm("update_addon_ids"); exists {
-			hasUpdateAddonIDs = true
-			updateAddonIDsRaw = strings.Split(raw, ",")
-		}
+	updateAddonIDs, hasUpdateAddonIDs, err := parseFlexibleIntFormArray(c, "update_addon_ids")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
 	}
 	if hasUpdateAddonIDs {
-		req.UpdateAddonIDs = make([]int, 0, len(updateAddonIDsRaw))
-		for _, v := range updateAddonIDsRaw {
-			trimmed := strings.TrimSpace(v)
-			if trimmed == "" {
-				continue
-			}
-			addonID, parseErr := strconv.Atoi(trimmed)
-			if parseErr != nil {
-				common.ErrorResponse(c, parseErr)
-				return
-			}
-			req.UpdateAddonIDs = append(req.UpdateAddonIDs, addonID)
-		}
+		req.UpdateAddonIDs = updateAddonIDs
 	}
 
-	updateAddonNames, hasUpdateAddonNames := c.GetPostFormArray("update_addon_names")
-	if !hasUpdateAddonNames {
-		updateAddonNames, hasUpdateAddonNames = c.GetPostFormArray("update_addon_names[]")
-	}
-	if !hasUpdateAddonNames {
-		if raw, exists := c.GetPostForm("update_addon_names"); exists {
-			hasUpdateAddonNames = true
-			updateAddonNames = strings.Split(raw, ",")
-		}
-	}
+	updateAddonNames, hasUpdateAddonNames := readFlexibleFormArray(c, "update_addon_names")
 	if hasUpdateAddonNames {
 		req.UpdateAddonNames = updateAddonNames
 	}
 
-	updateAddonManufacturerIDsRaw, hasUpdateAddonManufacturerIDs := c.GetPostFormArray("update_addons_manufacturer_id")
-	if !hasUpdateAddonManufacturerIDs {
-		updateAddonManufacturerIDsRaw, hasUpdateAddonManufacturerIDs = c.GetPostFormArray("update_addons_manufacturer_id[]")
-	}
-	if !hasUpdateAddonManufacturerIDs {
-		if raw, exists := c.GetPostForm("update_addons_manufacturer_id"); exists {
-			hasUpdateAddonManufacturerIDs = true
-			updateAddonManufacturerIDsRaw = strings.Split(raw, ",")
-		}
+	updateAddonManufacturerIDs, hasUpdateAddonManufacturerIDs, err := parseFlexibleIntFormArray(c, "update_addons_manufacturer_id")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
 	}
 	if hasUpdateAddonManufacturerIDs {
-		req.UpdateAddonManufacturerID = make([]int, 0, len(updateAddonManufacturerIDsRaw))
-		for _, v := range updateAddonManufacturerIDsRaw {
-			trimmed := strings.TrimSpace(v)
-			if trimmed == "" {
-				continue
-			}
-			manufacturerID, parseErr := strconv.Atoi(trimmed)
-			if parseErr != nil {
-				common.ErrorResponse(c, parseErr)
-				return
-			}
-			req.UpdateAddonManufacturerID = append(req.UpdateAddonManufacturerID, manufacturerID)
-		}
+		req.UpdateAddonManufacturerID = updateAddonManufacturerIDs
 	}
 
-	deletedURLs, hasDeletedURLs := c.GetPostFormArray("deleted_picture_urls")
-	if !hasDeletedURLs {
-		deletedURLs, hasDeletedURLs = c.GetPostFormArray("deleted_picture_urls[]")
-	}
-	if !hasDeletedURLs {
-		if raw, exists := c.GetPostForm("deleted_picture_urls"); exists {
-			hasDeletedURLs = true
-			deletedURLs = strings.Split(raw, ",")
-		}
-	}
+	deletedURLs, hasDeletedURLs := readFlexibleFormArray(c, "deleted_picture_urls")
 	if hasDeletedURLs {
 		req.DeletedPictureURLsPresent = true
-		req.DeletedPictureURLs = make([]string, 0, len(deletedURLs))
-		for _, v := range deletedURLs {
-			trimmed := strings.TrimSpace(v)
-			if trimmed == "" {
-				continue
-			}
-			req.DeletedPictureURLs = append(req.DeletedPictureURLs, trimmed)
-		}
+		req.DeletedPictureURLs = trimNonEmptyStrings(deletedURLs)
 	}
 
-	existingAddonIDsRaw, hasExistingAddonIDs := c.GetPostFormArray("existing_addon_ids")
-	if !hasExistingAddonIDs {
-		existingAddonIDsRaw, hasExistingAddonIDs = c.GetPostFormArray("existing_addon_ids[]")
-	}
-	if !hasExistingAddonIDs {
-		if raw, exists := c.GetPostForm("existing_addon_ids"); exists {
-			hasExistingAddonIDs = true
-			existingAddonIDsRaw = strings.Split(raw, ",")
-		}
+	existingAddonIDs, hasExistingAddonIDs, err := parseFlexibleIntFormArray(c, "existing_addon_ids")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
 	}
 	if hasExistingAddonIDs {
 		req.ExistingAddonIDsPresent = true
-		req.ExistingAddonIDs = make([]int, 0, len(existingAddonIDsRaw))
-		for _, v := range existingAddonIDsRaw {
-			trimmed := strings.TrimSpace(v)
-			if trimmed == "" {
-				continue
-			}
-			addonID, parseErr := strconv.Atoi(trimmed)
-			if parseErr != nil {
-				common.ErrorResponse(c, parseErr)
-				return
-			}
-			req.ExistingAddonIDs = append(req.ExistingAddonIDs, addonID)
-		}
+		req.ExistingAddonIDs = existingAddonIDs
 	}
 
-	deletedAddonIDsRaw, hasDeletedAddonIDs := c.GetPostFormArray("deleted_addon_ids")
-	if !hasDeletedAddonIDs {
-		deletedAddonIDsRaw, hasDeletedAddonIDs = c.GetPostFormArray("deleted_addon_ids[]")
-	}
-	if !hasDeletedAddonIDs {
-		if raw, exists := c.GetPostForm("deleted_addon_ids"); exists {
-			hasDeletedAddonIDs = true
-			deletedAddonIDsRaw = strings.Split(raw, ",")
-		}
+	deletedAddonIDs, hasDeletedAddonIDs, err := parseFlexibleIntFormArray(c, "deleted_addon_ids")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
 	}
 	if hasDeletedAddonIDs {
 		req.DeletedAddonIDsPresent = true
-		req.DeletedAddonIDs = make([]int, 0, len(deletedAddonIDsRaw))
-		for _, v := range deletedAddonIDsRaw {
-			trimmed := strings.TrimSpace(v)
-			if trimmed == "" {
-				continue
-			}
-			addonID, parseErr := strconv.Atoi(trimmed)
-			if parseErr != nil {
-				common.ErrorResponse(c, parseErr)
-				return
-			}
-			req.DeletedAddonIDs = append(req.DeletedAddonIDs, addonID)
-		}
+		req.DeletedAddonIDs = deletedAddonIDs
 	}
 
 	result, err := h.collectionService.UpdateCollection(id, req)
@@ -367,4 +199,84 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 	}
 
 	common.SuccessResponse(c, result, http.StatusOK)
+}
+
+func readFormFileIfExists(c *gin.Context, key string) *multipart.FileHeader {
+	file, err := c.FormFile(key)
+	if err != nil {
+		return nil
+	}
+	return file
+}
+
+func readMultipartFiles(c *gin.Context, keys ...string) []*multipart.FileHeader {
+	form, err := c.MultipartForm()
+	if err != nil || form == nil {
+		return nil
+	}
+
+	files := make([]*multipart.FileHeader, 0)
+	for _, key := range keys {
+		formFiles, ok := form.File[key]
+		if !ok || len(formFiles) == 0 {
+			continue
+		}
+		files = append(files, formFiles...)
+	}
+
+	return files
+}
+
+func readFlexibleFormArray(c *gin.Context, key string) ([]string, bool) {
+	values, exists := c.GetPostFormArray(key)
+	if exists {
+		return values, true
+	}
+
+	values, exists = c.GetPostFormArray(key + "[]")
+	if exists {
+		return values, true
+	}
+
+	value, exists := c.GetPostForm(key)
+	if exists {
+		return strings.Split(value, ","), true
+	}
+
+	return nil, false
+}
+
+func parseFlexibleIntFormArray(c *gin.Context, key string) ([]int, bool, error) {
+	values, exists := readFlexibleFormArray(c, key)
+	if !exists {
+		return nil, false, nil
+	}
+
+	result := make([]int, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+
+		parsed, err := strconv.Atoi(trimmed)
+		if err != nil {
+			return nil, true, err
+		}
+		result = append(result, parsed)
+	}
+
+	return result, true, nil
+}
+
+func trimNonEmptyStrings(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		result = append(result, trimmed)
+	}
+	return result
 }
