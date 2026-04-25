@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -42,6 +43,11 @@ func NewCollectionRepository(db *gorm.DB) CollectionRepository {
 }
 
 func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Collection, error) {
+	startedAt := time.Now()
+	defer func() {
+		log.Printf("[repo.collection.detail] collection_id=%d duration=%s", id, time.Since(startedAt))
+	}()
+
 	type collectionDetailRow struct {
 		ID               int                                `gorm:"column:id"`
 		Title            string                             `gorm:"column:title"`
@@ -73,6 +79,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 	}
 
 	row := collectionDetailRow{}
+	mainQueryStartedAt := time.Now()
 	result := r.db.Table("collections c").
 		Select(`
 			c.id,
@@ -105,6 +112,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		Where("c.id = ? AND c.deleted_at IS NULL", id).
 		Limit(1).
 		Scan(&row)
+	log.Printf("[repo.collection.detail.main_query] collection_id=%d duration=%s rows=%d err=%v", id, time.Since(mainQueryStartedAt), result.RowsAffected, result.Error)
 	if result.Error != nil {
 		return collectionEntity.Collection{}, common.DBError{ErrorMsg: result.Error}
 	}
@@ -122,16 +130,19 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 
 	go func() {
 		defer wg.Done()
+		queryStartedAt := time.Now()
 		picturesErr = r.db.Model(&collectionEntity.Picture{}).
 			Select("id", "collection_id", "url").
 			Where("collection_id = ? AND deleted_at IS NULL", id).
 			Order("created_at DESC").
 			Order("id DESC").
 			Find(&pictures).Error
+		log.Printf("[repo.collection.detail.pictures_query] collection_id=%d duration=%s rows=%d err=%v", id, time.Since(queryStartedAt), len(pictures), picturesErr)
 	}()
 
 	go func() {
 		defer wg.Done()
+		queryStartedAt := time.Now()
 		addonsErr = r.db.Table("addons a").
 			Select(`
 				a.id,
@@ -145,6 +156,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			Order("a.created_at DESC").
 			Order("a.id DESC").
 			Scan(&addonRows).Error
+		log.Printf("[repo.collection.detail.addons_query] collection_id=%d duration=%s rows=%d err=%v", id, time.Since(queryStartedAt), len(addonRows), addonsErr)
 	}()
 
 	wg.Wait()
@@ -234,6 +246,22 @@ type collectionListItemRow struct {
 }
 
 func (r *collectionRepository) GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
+	startedAt := time.Now()
+	defer func() {
+		log.Printf("[repo.collection.list] duration=%s filters={collection_type_id:%d grade_id:%d release_type_ids:%v manufacturer_id:%d series_id:%d status:%q sort:%q limit:%d offset:%d}",
+			time.Since(startedAt),
+			filters.CollectionTypeID,
+			filters.GradeID,
+			filters.ReleaseTypeIDs,
+			filters.ManufacturerID,
+			filters.SeriesID,
+			filters.Status,
+			filters.Sort,
+			filters.Limit,
+			filters.Offset,
+		)
+	}()
+
 	rows := []collectionListItemRow{}
 	db := r.db.Table("collections c").
 		Select(`
@@ -295,11 +323,13 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 
 	orderBy1, orderBy2 := getCollectionListSort(filters.Sort)
 
+	queryStartedAt := time.Now()
 	result := db.Order(orderBy1).
 		Order(orderBy2).
 		Limit(limit).
 		Offset(offset).
 		Scan(&rows)
+	log.Printf("[repo.collection.list.query] duration=%s rows=%d order_by_1=%q order_by_2=%q err=%v", time.Since(queryStartedAt), len(rows), orderBy1, orderBy2, result.Error)
 	if result.Error != nil {
 		return collectionEntity.CollectionListResponse{}, common.DBError{ErrorMsg: result.Error}
 	}
@@ -478,9 +508,11 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 
 func (r *collectionRepository) GetCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, error) {
 	if cached, ok := r.getCachedCollectionFilterDrawer(); ok {
+		log.Printf("[repo.collection.filter] cache=hit duration=0s")
 		return cached, nil
 	}
 
+	startedAt := time.Now()
 	drawer := collectionEntity.CollectionFilterDrawerResponse{}
 
 	type collectionTypeRow struct {
@@ -489,20 +521,26 @@ func (r *collectionRepository) GetCollectionFilterDrawer() (collectionEntity.Col
 	}
 
 	rows := []collectionTypeRow{}
+	collectionTypesStartedAt := time.Now()
 	if err := r.db.Table("collection_types").
 		Select("id", "name").
 		Where("deleted_at IS NULL").
 		Order("name ASC").
 		Find(&rows).Error; err != nil {
+		log.Printf("[repo.collection.filter.collection_types_query] duration=%s rows=%d err=%v", time.Since(collectionTypesStartedAt), len(rows), err)
 		return collectionEntity.CollectionFilterDrawerResponse{}, common.DBError{ErrorMsg: err}
 	}
+	log.Printf("[repo.collection.filter.collection_types_query] duration=%s rows=%d err=<nil>", time.Since(collectionTypesStartedAt), len(rows))
 
 	releaseTypes := []collectionEntity.ReleaseType{}
+	releaseTypesStartedAt := time.Now()
 	if err := r.db.Model(&collectionEntity.ReleaseType{}).
 		Order("name ASC").
 		Find(&releaseTypes).Error; err != nil {
+		log.Printf("[repo.collection.filter.release_types_query] duration=%s rows=%d err=%v", time.Since(releaseTypesStartedAt), len(releaseTypes), err)
 		return collectionEntity.CollectionFilterDrawerResponse{}, common.DBError{ErrorMsg: err}
 	}
+	log.Printf("[repo.collection.filter.release_types_query] duration=%s rows=%d err=<nil>", time.Since(releaseTypesStartedAt), len(releaseTypes))
 
 	drawer.CollectionTypes = make([]collectionEntity.CollectionTypeFilterItem, 0, len(rows))
 	for _, row := range rows {
@@ -521,6 +559,7 @@ func (r *collectionRepository) GetCollectionFilterDrawer() (collectionEntity.Col
 	}
 
 	r.setCachedCollectionFilterDrawer(drawer)
+	log.Printf("[repo.collection.filter] cache=miss duration=%s", time.Since(startedAt))
 
 	return drawer, nil
 }

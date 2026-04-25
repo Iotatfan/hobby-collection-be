@@ -2,10 +2,12 @@ package handler
 
 import (
 	"errors"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/iotatfan/hobby-collection-be/internal/collection/entity"
@@ -22,6 +24,11 @@ func NewCollectionHandler(s collectionService.CollectionService) CollectiontHand
 }
 
 func (h *CollectiontHandler) GetCollectionByID(c *gin.Context) {
+	startedAt := time.Now()
+	defer func() {
+		log.Printf("[http] path=%s method=%s id=%s duration=%s status=%d", c.FullPath(), c.Request.Method, c.Param("id"), time.Since(startedAt), c.Writer.Status())
+	}()
+
 	inputID := c.Param("id")
 	id, err := strconv.Atoi(inputID)
 	if err != nil {
@@ -38,6 +45,11 @@ func (h *CollectiontHandler) GetCollectionByID(c *gin.Context) {
 }
 
 func (h *CollectiontHandler) GetCollectionList(c *gin.Context) {
+	startedAt := time.Now()
+	defer func() {
+		log.Printf("[http] path=%s method=%s raw_query=%q duration=%s status=%d", c.FullPath(), c.Request.Method, c.Request.URL.RawQuery, time.Since(startedAt), c.Writer.Status())
+	}()
+
 	filters := entity.CollectionFilterRequest{}
 	err := c.ShouldBindQuery(&filters)
 	if err != nil {
@@ -72,6 +84,11 @@ func (h *CollectiontHandler) GetCollectionDrawer(c *gin.Context) {
 }
 
 func (h *CollectiontHandler) GetCollectionFilterDrawer(c *gin.Context) {
+	startedAt := time.Now()
+	defer func() {
+		log.Printf("[http] path=%s method=%s duration=%s status=%d", c.FullPath(), c.Request.Method, time.Since(startedAt), c.Writer.Status())
+	}()
+
 	result, err := h.collectionService.GetCollectionFilterDrawer()
 	if err != nil {
 		common.ErrorResponse(c, err)
