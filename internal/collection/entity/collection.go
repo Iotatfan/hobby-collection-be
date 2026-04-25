@@ -33,8 +33,8 @@ type Addon struct {
 	AddonName      string       `gorm:"column:addon_name"`
 	ManufacturerID int          `gorm:"column:manufacturer"`
 	Manufacturer   Manufacturer `gorm:"foreignKey:ManufacturerID;default:0"`
-	CollectionID   int          `gorm:"column:collection_id;index"`
-	common.Model   `gorm:"embedded"`
+	CollectionID   int          `gorm:"column:collection_id;index;index:idx_addons_collection_deleted,composite:collection_id"`
+	common.Model   `gorm:"embedded;index:idx_addons_collection_deleted,composite:deleted_at"`
 }
 
 type CollectionType struct {
@@ -75,9 +75,9 @@ type Series struct {
 
 type Picture struct {
 	ID           int    `gorm:"primaryKey;autoIncrement;column:id"`
-	CollectionID int    `gorm:"column:collection_id"`
+	CollectionID int    `gorm:"column:collection_id;index:idx_pictures_collection_deleted,composite:collection_id"`
 	Url          string `gorm:"column:url"`
-	common.Model `gorm:"embedded"`
+	common.Model `gorm:"embedded;index:idx_pictures_collection_deleted,composite:deleted_at"`
 }
 
 type Manufacturer struct {

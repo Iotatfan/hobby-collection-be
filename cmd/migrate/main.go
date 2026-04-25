@@ -28,5 +28,15 @@ func main() {
 		log.Fatalf("auto migrate failed: %v", err)
 	}
 
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_addons_collection_deleted ON addons(collection_id, deleted_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_pictures_collection_deleted ON pictures(collection_id, deleted_at)`,
+	}
+	for _, idx := range indexes {
+		if err := db.Exec(idx).Error; err != nil {
+			log.Fatalf("create index failed: %v", err)
+		}
+	}
+
 	log.Println("migration complete")
 }
