@@ -53,7 +53,7 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
-	return mapCollectionReponse(collection, getPictures(collection), getAddons(collection)), nil
+	return mapCollectionResponse(collection, getPictures(collection), getAddons(collection)), nil
 }
 
 func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
@@ -130,7 +130,7 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
-	return mapCollectionReponse(collection, getPictures(collection), getAddons(collection)), nil
+	return mapCollectionResponse(collection, getPictures(collection), getAddons(collection)), nil
 }
 
 func (s *collectionService) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
@@ -332,7 +332,7 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
-	return mapCollectionReponse(collection, getPictures(collection), getAddons(collection)), nil
+	return mapCollectionResponse(collection, getPictures(collection), getAddons(collection)), nil
 }
 
 func getPictures(collection collectionEntity.Collection) []collectionEntity.Picture {
@@ -578,7 +578,7 @@ func cloudinaryValueToPublicID(value string) string {
 	return cachePathToPublicID(trimmed)
 }
 
-func mapCollectionReponse(collection collectionEntity.Collection, pictures []collectionEntity.Picture, addons []collectionEntity.Addon) collectionEntity.CollectionDetailResponse {
+func mapCollectionResponse(collection collectionEntity.Collection, pictures []collectionEntity.Picture, addons []collectionEntity.Addon) collectionEntity.CollectionDetailResponse {
 
 	var builtAt *time.Time
 	if collection.BuiltAt != nil {

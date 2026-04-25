@@ -33,7 +33,7 @@ type Addon struct {
 	AddonName      string       `gorm:"column:addon_name"`
 	ManufacturerID int          `gorm:"column:manufacturer"`
 	Manufacturer   Manufacturer `gorm:"foreignKey:ManufacturerID;default:0"`
-	CollectionID   int          `gorm:"column:collection_id"`
+	CollectionID   int          `gorm:"column:collection_id;index"`
 	common.Model   `gorm:"embedded"`
 }
 
