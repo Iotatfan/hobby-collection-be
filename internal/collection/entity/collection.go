@@ -75,7 +75,7 @@ type Series struct {
 
 type Picture struct {
 	ID           int    `gorm:"primaryKey;autoIncrement;column:id"`
-	CollectionID int    `gorm:"column:collection_id"`
+	CollectionID int    `gorm:"column:collection_id;index"`
 	Url          string `gorm:"column:url"`
 	common.Model `gorm:"embedded"`
 }
