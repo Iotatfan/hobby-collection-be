@@ -1,8 +1,10 @@
 package gorm
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/iotatfan/hobby-collection-be/internal/config"
@@ -16,10 +18,15 @@ const (
 	defaultMaxIdleConns    = 10
 	defaultConnMaxLifetime = 30 * time.Minute
 	defaultConnMaxIdleTime = 5 * time.Minute
+	defaultConnectTimeout  = 5 * time.Second
+	defaultPingTimeout     = 5 * time.Second
 )
 
 func NewDB(cfg *config.PostgresConfig) *gorm.DB {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s", cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName)
+	if !strings.Contains(strings.ToLower(dsn), "connect_timeout=") {
+		dsn = fmt.Sprintf("%s connect_timeout=%d", dsn, int(defaultConnectTimeout/time.Second))
+	}
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.New(
 			log.New(log.Writer(), "", log.LstdFlags),
@@ -43,6 +50,14 @@ func NewDB(cfg *config.PostgresConfig) *gorm.DB {
 	sqlDB.SetMaxIdleConns(defaultMaxIdleConns)
 	sqlDB.SetConnMaxLifetime(defaultConnMaxLifetime)
 	sqlDB.SetConnMaxIdleTime(defaultConnMaxIdleTime)
+
+	pingCtx, cancel := context.WithTimeout(context.Background(), defaultPingTimeout)
+	defer cancel()
+	pingStartedAt := time.Now()
+	if err := sqlDB.PingContext(pingCtx); err != nil {
+		panic(fmt.Errorf("database ping error after %s: %w", time.Since(pingStartedAt), err))
+	}
+	log.Printf("[db] ping success duration=%s", time.Since(pingStartedAt))
 
 	return db
 }
