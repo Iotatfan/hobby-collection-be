@@ -9,15 +9,15 @@ import (
 // Table
 type Collection struct {
 	ID             int               `gorm:"primaryKey;autoIncrement;column:id"`
-	GradeID        int               `gorm:"column:grade_id"`
+	GradeID        int               `gorm:"column:grade_id;index:idx_collections_grade_deleted,composite:grade_id"`
 	CollectionType CollectionType    `gorm:"-"`
 	Title          string            `gorm:"column:title"`
-	ReleaseTypeID  int               `gorm:"column:release_type"`
+	ReleaseTypeID  int               `gorm:"column:release_type;index:idx_collections_release_type_deleted,composite:release_type"`
 	ReleaseType    ReleaseType       `gorm:"foreignKey:ReleaseTypeID;default:0"`
 	Status         COLLECTION_STATUS `gorm:"column:status"`
-	ManufacturerID int               `gorm:"column:manufacturer"`
+	ManufacturerID int               `gorm:"column:manufacturer;index:idx_collections_manufacturer_deleted,composite:manufacturer"`
 	Manufacturer   Manufacturer      `gorm:"foreignKey:ManufacturerID;default:0"`
-	SeriesID       int               `gorm:"column:series_id;default:0"`
+	SeriesID       int               `gorm:"column:series_id;default:0;index:idx_collections_series_deleted,composite:series_id"`
 	Series         Series            `gorm:"foreignKey:SeriesID"`
 	BuiltAt        *time.Time        `gorm:"column:built_at"`
 	AcquiredAt     *time.Time        `gorm:"column:acquired_at"`
@@ -51,7 +51,7 @@ type Grade struct {
 	ShortName        string `gorm:"column:short_name"`
 	ScaleID          int    `gorm:"column:scale_id"`
 	Scale            Scale  `gorm:"foreignKey:ScaleID"`
-	CollectionTypeID int    `gorm:"column:collection_type_id"`
+	CollectionTypeID int    `gorm:"column:collection_type_id;index:idx_grades_collection_type_deleted,composite:collection_type_id"`
 	common.Model     `gorm:"embedded"`
 }
 
