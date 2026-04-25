@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"sync"
@@ -26,12 +27,17 @@ type CollectionRepository interface {
 }
 
 type collectionRepository struct {
-	db *gorm.DB
+	db                   *gorm.DB
+	filterDrawerCacheMu  sync.RWMutex
+	filterDrawerCache    collectionEntity.CollectionFilterDrawerResponse
+	filterDrawerCachedAt time.Time
+	filterDrawerCacheTTL time.Duration
 }
 
 func NewCollectionRepository(db *gorm.DB) CollectionRepository {
 	return &collectionRepository{
-		db: db,
+		db:                   db,
+		filterDrawerCacheTTL: 5 * time.Minute,
 	}
 }
 
@@ -46,24 +52,24 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		Description      string                             `gorm:"column:description"`
 		TypeID           int                                `gorm:"column:type_id"`
 		TypeName         string                             `gorm:"column:type_name"`
-		TypeScale        string                             `gorm:"column:type_scale"`
+		TypeScale        sql.NullString                     `gorm:"column:type_scale"`
 		GradeID          int                                `gorm:"column:grade_id"`
 		GradeScaleID     int                                `gorm:"column:grade_scale_id"`
 		GradeName        string                             `gorm:"column:grade_name"`
 		GradeShortName   string                             `gorm:"column:grade_short_name"`
-		ReleaseTypeID    int                                `gorm:"column:release_type_id"`
-		ReleaseTypeName  string                             `gorm:"column:release_type_name"`
-		ManufacturerID   int                                `gorm:"column:manufacturer_id"`
-		ManufacturerName string                             `gorm:"column:manufacturer_name"`
-		SeriesID         int                                `gorm:"column:series_id"`
-		SeriesName       string                             `gorm:"column:series_name"`
+		ReleaseTypeID    sql.NullInt64                      `gorm:"column:release_type_id"`
+		ReleaseTypeName  sql.NullString                     `gorm:"column:release_type_name"`
+		ManufacturerID   sql.NullInt64                      `gorm:"column:manufacturer_id"`
+		ManufacturerName sql.NullString                     `gorm:"column:manufacturer_name"`
+		SeriesID         sql.NullInt64                      `gorm:"column:series_id"`
+		SeriesName       sql.NullString                     `gorm:"column:series_name"`
 	}
 	type addonDetailRow struct {
-		ID               int    `gorm:"column:id"`
-		AddonName        string `gorm:"column:addon_name"`
-		CollectionID     int    `gorm:"column:collection_id"`
-		ManufacturerID   int    `gorm:"column:manufacturer"`
-		ManufacturerName string `gorm:"column:manufacturer_name"`
+		ID               int            `gorm:"column:id"`
+		AddonName        string         `gorm:"column:addon_name"`
+		CollectionID     int            `gorm:"column:collection_id"`
+		ManufacturerID   int            `gorm:"column:manufacturer"`
+		ManufacturerName sql.NullString `gorm:"column:manufacturer_name"`
 	}
 
 	row := collectionDetailRow{}
@@ -78,17 +84,17 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			c.description,
 			ct.id as type_id,
 			ct.name as type_name,
-			COALESCE(sc.name, '') as type_scale,
-			COALESCE(g.id, 0) as grade_id,
-			COALESCE(g.scale_id, 0) as grade_scale_id,
-			COALESCE(g.name, '') as grade_name,
-			COALESCE(g.short_name, '') as grade_short_name,
-			COALESCE(rt.id, 0) as release_type_id,
-			COALESCE(rt.name, '') as release_type_name,
-			COALESCE(m.id, 0) as manufacturer_id,
-			COALESCE(m.name, '') as manufacturer_name,
-			COALESCE(s.id, 0) as series_id,
-			COALESCE(s.name, '') as series_name
+			sc.name as type_scale,
+			g.id as grade_id,
+			g.scale_id as grade_scale_id,
+			g.name as grade_name,
+			g.short_name as grade_short_name,
+			rt.id as release_type_id,
+			rt.name as release_type_name,
+			m.id as manufacturer_id,
+			m.name as manufacturer_name,
+			s.id as series_id,
+			s.name as series_name
 		`).
 		Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
 		Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
@@ -132,7 +138,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 				a.addon_name,
 				a.collection_id,
 				a.manufacturer,
-				COALESCE(m.name, '') AS manufacturer_name
+				m.name AS manufacturer_name
 			`).
 			Joins("LEFT JOIN manufacturers m ON m.id = a.manufacturer AND m.deleted_at IS NULL").
 			Where("a.collection_id = ? AND a.deleted_at IS NULL", id).
@@ -159,7 +165,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			CollectionID:   addonRow.CollectionID,
 			Manufacturer: collectionEntity.Manufacturer{
 				ID:               addonRow.ManufacturerID,
-				ManufacturerName: addonRow.ManufacturerName,
+				ManufacturerName: nullString(addonRow.ManufacturerName),
 			},
 		})
 	}
@@ -168,10 +174,10 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		ID:             row.ID,
 		GradeID:        row.GradeID,
 		Title:          row.Title,
-		ReleaseTypeID:  row.ReleaseTypeID,
+		ReleaseTypeID:  nullInt(row.ReleaseTypeID),
 		Status:         row.Status,
-		ManufacturerID: row.ManufacturerID,
-		SeriesID:       row.SeriesID,
+		ManufacturerID: nullInt(row.ManufacturerID),
+		SeriesID:       nullInt(row.SeriesID),
 		BuiltAt:        row.BuiltAt,
 		AcquiredAt:     row.AcquiredAt,
 		Cover:          row.Cover,
@@ -179,7 +185,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		CollectionType: collectionEntity.CollectionType{
 			ID:                 row.TypeID,
 			CollectionTypeName: row.TypeName,
-			Scale:              row.TypeScale,
+			Scale:              nullString(row.TypeScale),
 			Grade: collectionEntity.Grade{
 				ID:               row.GradeID,
 				Name:             row.GradeName,
@@ -189,16 +195,16 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			},
 		},
 		ReleaseType: collectionEntity.ReleaseType{
-			ID:              row.ReleaseTypeID,
-			ReleaseTypeName: row.ReleaseTypeName,
+			ID:              nullInt(row.ReleaseTypeID),
+			ReleaseTypeName: nullString(row.ReleaseTypeName),
 		},
 		Manufacturer: collectionEntity.Manufacturer{
-			ID:               row.ManufacturerID,
-			ManufacturerName: row.ManufacturerName,
+			ID:               nullInt(row.ManufacturerID),
+			ManufacturerName: nullString(row.ManufacturerName),
 		},
 		Series: collectionEntity.Series{
-			ID:         row.SeriesID,
-			SeriesName: row.SeriesName,
+			ID:         nullInt(row.SeriesID),
+			SeriesName: nullString(row.SeriesName),
 		},
 		Pictures: &pictures,
 		Addons:   &addons,
@@ -216,15 +222,15 @@ type collectionListItemRow struct {
 	Cover           string                             `gorm:"column:cover"`
 	TypeID          int                                `gorm:"column:type_id"`
 	TypeName        string                             `gorm:"column:type_name"`
-	TypeScale       string                             `gorm:"column:type_scale"`
+	TypeScale       sql.NullString                     `gorm:"column:type_scale"`
 	GradeID         int                                `gorm:"column:grade_id"`
 	GradeScaleID    int                                `gorm:"column:grade_scale_id"`
 	GradeName       string                             `gorm:"column:grade_name"`
 	GradeShortName  string                             `gorm:"column:grade_short_name"`
-	ReleaseTypeID   int                                `gorm:"column:release_type_id"`
-	ReleaseTypeName string                             `gorm:"column:release_type_name"`
-	SeriesID        int                                `gorm:"column:series_id"`
-	SeriesName      string                             `gorm:"column:series_name"`
+	ReleaseTypeID   sql.NullInt64                      `gorm:"column:release_type_id"`
+	ReleaseTypeName sql.NullString                     `gorm:"column:release_type_name"`
+	SeriesID        sql.NullInt64                      `gorm:"column:series_id"`
+	SeriesName      sql.NullString                     `gorm:"column:series_name"`
 }
 
 func (r *collectionRepository) GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
@@ -239,15 +245,15 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 			c.cover,
 			ct.id as type_id,
 			ct.name as type_name,
-			COALESCE(sc.name, '') as type_scale,
-			COALESCE(g.id, 0) as grade_id,
-			COALESCE(g.scale_id, 0) as grade_scale_id,
-			COALESCE(g.name, '') as grade_name,
-			COALESCE(g.short_name, '') as grade_short_name,
-			COALESCE(rt.id, 0) as release_type_id,
-			COALESCE(rt.name, '') as release_type_name,
-			COALESCE(s.id, 0) as series_id,
-			COALESCE(s.name, '') as series_name
+			sc.name as type_scale,
+			g.id as grade_id,
+			g.scale_id as grade_scale_id,
+			g.name as grade_name,
+			g.short_name as grade_short_name,
+			rt.id as release_type_id,
+			rt.name as release_type_name,
+			s.id as series_id,
+			s.name as series_name
 		`).
 		Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
 		Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
@@ -324,7 +330,7 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 			Type: collectionEntity.CollectionTypeResponse{
 				ID:                 row.TypeID,
 				CollectionTypeName: row.TypeName,
-				Scale:              row.TypeScale,
+				Scale:              nullString(row.TypeScale),
 				Grade: collectionEntity.GradeResponse{
 					ID:               row.GradeID,
 					Name:             row.GradeName,
@@ -334,13 +340,13 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 				},
 			},
 			ReleaseType: collectionEntity.ReleaseTypeResponse{
-				ID:              row.ReleaseTypeID,
-				ReleaseTypeName: row.ReleaseTypeName,
+				ID:              nullInt(row.ReleaseTypeID),
+				ReleaseTypeName: nullString(row.ReleaseTypeName),
 			},
 			Status: row.Status,
 			Series: collectionEntity.SeriesResponse{
-				ID:         row.SeriesID,
-				SeriesName: row.SeriesName,
+				ID:         nullInt(row.SeriesID),
+				SeriesName: nullString(row.SeriesName),
 			},
 			BuiltAt:    builtAt,
 			AcquiredAt: acquiredAt,
@@ -356,23 +362,23 @@ func getCollectionListSort(sort string) (string, string) {
 
 	switch sort {
 	case "latest", "latest_built":
-		return "COALESCE(c.built_at, c.acquired_at) DESC NULLS LAST", "c.id DESC"
+		return "c.built_at DESC NULLS LAST", "c.acquired_at DESC NULLS LAST, c.id DESC"
 	case "name", "name_asc":
 		return "c.title ASC", "c.id ASC"
 	case "name_desc":
 		return "c.title DESC", "c.id DESC"
 	default:
-		return "COALESCE(c.built_at, c.acquired_at) DESC NULLS LAST", "c.id DESC"
+		return "c.built_at DESC NULLS LAST", "c.acquired_at DESC NULLS LAST, c.id DESC"
 	}
 }
 
 func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error) {
 	drawer := collectionEntity.CollectionDrawerResponse{}
 	type gradeRow struct {
-		ID                 int    `gorm:"column:id"`
-		ShortName          string `gorm:"column:short_name"`
-		ScaleName          string `gorm:"column:scale_name"`
-		CollectionTypeName string `gorm:"column:collection_type_name"`
+		ID                 int            `gorm:"column:id"`
+		ShortName          string         `gorm:"column:short_name"`
+		ScaleName          sql.NullString `gorm:"column:scale_name"`
+		CollectionTypeName sql.NullString `gorm:"column:collection_type_name"`
 	}
 
 	grades := []gradeRow{}
@@ -380,8 +386,8 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 		Select(`
 			g.id,
 			g.short_name,
-			COALESCE(s.name, '') as scale_name,
-			COALESCE(ct.name, '') as collection_type_name
+			s.name as scale_name,
+			ct.name as collection_type_name
 		`).
 		Joins("LEFT JOIN scales s ON s.id = g.scale_id AND s.deleted_at IS NULL").
 		Joins("LEFT JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
@@ -395,9 +401,9 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 	for _, grade := range grades {
 		drawer.Grades = append(drawer.Grades, collectionEntity.GradeDrawerItem{
 			GradeID:            grade.ID,
-			CollectionTypeName: grade.CollectionTypeName,
+			CollectionTypeName: nullString(grade.CollectionTypeName),
 			GradeShortName:     grade.ShortName,
-			Scale:              grade.ScaleName,
+			Scale:              nullString(grade.ScaleName),
 		})
 	}
 
@@ -471,6 +477,10 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 }
 
 func (r *collectionRepository) GetCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, error) {
+	if cached, ok := r.getCachedCollectionFilterDrawer(); ok {
+		return cached, nil
+	}
+
 	drawer := collectionEntity.CollectionFilterDrawerResponse{}
 
 	type collectionTypeRow struct {
@@ -510,7 +520,56 @@ func (r *collectionRepository) GetCollectionFilterDrawer() (collectionEntity.Col
 		})
 	}
 
+	r.setCachedCollectionFilterDrawer(drawer)
+
 	return drawer, nil
+}
+
+func (r *collectionRepository) getCachedCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, bool) {
+	r.filterDrawerCacheMu.RLock()
+	defer r.filterDrawerCacheMu.RUnlock()
+
+	if r.filterDrawerCachedAt.IsZero() || time.Since(r.filterDrawerCachedAt) > r.filterDrawerCacheTTL {
+		return collectionEntity.CollectionFilterDrawerResponse{}, false
+	}
+
+	return cloneCollectionFilterDrawerResponse(r.filterDrawerCache), true
+}
+
+func (r *collectionRepository) setCachedCollectionFilterDrawer(drawer collectionEntity.CollectionFilterDrawerResponse) {
+	r.filterDrawerCacheMu.Lock()
+	defer r.filterDrawerCacheMu.Unlock()
+
+	r.filterDrawerCache = cloneCollectionFilterDrawerResponse(drawer)
+	r.filterDrawerCachedAt = time.Now()
+}
+
+func cloneCollectionFilterDrawerResponse(drawer collectionEntity.CollectionFilterDrawerResponse) collectionEntity.CollectionFilterDrawerResponse {
+	cloned := collectionEntity.CollectionFilterDrawerResponse{
+		CollectionTypes: make([]collectionEntity.CollectionTypeFilterItem, len(drawer.CollectionTypes)),
+		ReleaseTypes:    make([]collectionEntity.ReleaseTypeResponse, len(drawer.ReleaseTypes)),
+	}
+
+	copy(cloned.CollectionTypes, drawer.CollectionTypes)
+	copy(cloned.ReleaseTypes, drawer.ReleaseTypes)
+
+	return cloned
+}
+
+func nullString(value sql.NullString) string {
+	if !value.Valid {
+		return ""
+	}
+
+	return value.String
+}
+
+func nullInt(value sql.NullInt64) int {
+	if !value.Valid {
+		return 0
+	}
+
+	return int(value.Int64)
 }
 
 func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error) {
