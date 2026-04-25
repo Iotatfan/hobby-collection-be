@@ -230,9 +230,30 @@ type collectionListItemRow struct {
 func (r *collectionRepository) GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
 	rows := []collectionListItemRow{}
 	db := r.db.Table("collections c").
-		Select("c.id").
+		Select(`
+			c.id,
+			c.title,
+			c.status,
+			c.built_at,
+			c.acquired_at,
+			c.cover,
+			ct.id as type_id,
+			ct.name as type_name,
+			COALESCE(sc.name, '') as type_scale,
+			COALESCE(g.id, 0) as grade_id,
+			COALESCE(g.scale_id, 0) as grade_scale_id,
+			COALESCE(g.name, '') as grade_name,
+			COALESCE(g.short_name, '') as grade_short_name,
+			COALESCE(rt.id, 0) as release_type_id,
+			COALESCE(rt.name, '') as release_type_name,
+			COALESCE(s.id, 0) as series_id,
+			COALESCE(s.name, '') as series_name
+		`).
 		Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
 		Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
+		Joins("LEFT JOIN scales sc ON sc.id = g.scale_id AND sc.deleted_at IS NULL").
+		Joins("LEFT JOIN release_types rt ON rt.id = c.release_type AND rt.deleted_at IS NULL").
+		Joins("LEFT JOIN series s ON s.id = c.series_id AND s.deleted_at IS NULL").
 		Where("c.deleted_at IS NULL")
 
 	if filters.CollectionTypeID > 0 {
@@ -266,70 +287,26 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 		offset = 0
 	}
 
-	ids := []int{}
 	orderBy1, orderBy2 := getCollectionListSort(filters.Sort)
 
 	result := db.Order(orderBy1).
 		Order(orderBy2).
 		Limit(limit).
 		Offset(offset).
-		Pluck("c.id", &ids)
+		Scan(&rows)
 	if result.Error != nil {
 		return collectionEntity.CollectionListResponse{}, common.DBError{ErrorMsg: result.Error}
 	}
-	if len(ids) == 0 {
+	if len(rows) == 0 {
 		return collectionEntity.CollectionListResponse{
 			Collections: []collectionEntity.CollectionListItemResponse{},
 		}, nil
 	}
 
-	result = r.db.Table("collections c").
-		Select(`
-			c.id,
-			c.title,
-			c.status,
-			c.built_at,
-			c.acquired_at,
-			c.cover,
-			ct.id as type_id,
-			ct.name as type_name,
-			COALESCE(sc.name, '') as type_scale,
-			COALESCE(g.id, 0) as grade_id,
-			COALESCE(g.scale_id, 0) as grade_scale_id,
-			COALESCE(g.name, '') as grade_name,
-			COALESCE(g.short_name, '') as grade_short_name,
-			COALESCE(rt.id, 0) as release_type_id,
-			COALESCE(rt.name, '') as release_type_name,
-			COALESCE(s.id, 0) as series_id,
-			COALESCE(s.name, '') as series_name
-		`).
-		Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
-		Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
-		Joins("LEFT JOIN scales sc ON sc.id = g.scale_id AND sc.deleted_at IS NULL").
-		Joins("LEFT JOIN release_types rt ON rt.id = c.release_type AND rt.deleted_at IS NULL").
-		Joins("LEFT JOIN series s ON s.id = c.series_id AND s.deleted_at IS NULL").
-		Where("c.id IN ?", ids).
-		Order(orderBy1).
-		Order(orderBy2).
-		Scan(&rows)
-	if result.Error != nil {
-		return collectionEntity.CollectionListResponse{}, common.DBError{ErrorMsg: result.Error}
-	}
-
-	rowByID := make(map[int]collectionListItemRow, len(rows))
-	for _, row := range rows {
-		rowByID[row.ID] = row
-	}
-
 	response := collectionEntity.CollectionListResponse{
-		Collections: make([]collectionEntity.CollectionListItemResponse, 0, len(ids)),
+		Collections: make([]collectionEntity.CollectionListItemResponse, 0, len(rows)),
 	}
-	for _, id := range ids {
-		row, exists := rowByID[id]
-		if !exists {
-			continue
-		}
-
+	for _, row := range rows {
 		var builtAt *time.Time
 		if row.BuiltAt != nil {
 			localBuiltAt := row.BuiltAt.Local()
