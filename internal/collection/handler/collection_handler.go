@@ -44,6 +44,16 @@ func (h *CollectiontHandler) GetCollectionList(c *gin.Context) {
 		common.ErrorResponse(c, err)
 		return
 	}
+
+	releaseTypeIDs, hasReleaseTypeIDs, err := parseFlexibleIntQueryArray(c, "release_type_id", "release_type_ids")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	if hasReleaseTypeIDs {
+		filters.ReleaseTypeIDs = releaseTypeIDs
+	}
+
 	result, err := h.collectionService.GetCollectionList(filters)
 	if err != nil {
 		common.ErrorResponse(c, err)
@@ -248,6 +258,45 @@ func readFlexibleFormArray(c *gin.Context, key string) ([]string, bool) {
 
 func parseFlexibleIntFormArray(c *gin.Context, key string) ([]int, bool, error) {
 	values, exists := readFlexibleFormArray(c, key)
+	if !exists {
+		return nil, false, nil
+	}
+
+	result := make([]int, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+
+		parsed, err := strconv.Atoi(trimmed)
+		if err != nil {
+			return nil, true, err
+		}
+		result = append(result, parsed)
+	}
+
+	return result, true, nil
+}
+
+func readFlexibleQueryArray(c *gin.Context, keys ...string) ([]string, bool) {
+	for _, key := range keys {
+		values, exists := c.GetQueryArray(key)
+		if exists {
+			return values, true
+		}
+
+		value := c.Query(key)
+		if strings.TrimSpace(value) != "" {
+			return strings.Split(value, ","), true
+		}
+	}
+
+	return nil, false
+}
+
+func parseFlexibleIntQueryArray(c *gin.Context, keys ...string) ([]int, bool, error) {
+	values, exists := readFlexibleQueryArray(c, keys...)
 	if !exists {
 		return nil, false, nil
 	}

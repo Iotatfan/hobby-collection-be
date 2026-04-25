@@ -59,6 +59,7 @@ type GradeDrawerItem struct {
 
 type CollectionFilterDrawerResponse struct {
 	CollectionTypes []CollectionTypeFilterItem `json:"collection_types"`
+	ReleaseTypes    []ReleaseTypeResponse      `json:"release_types"`
 }
 
 type CollectionTypeFilterItem struct {

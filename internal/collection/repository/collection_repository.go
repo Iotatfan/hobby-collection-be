@@ -487,11 +487,26 @@ func (r *collectionRepository) GetCollectionFilterDrawer() (collectionEntity.Col
 		return collectionEntity.CollectionFilterDrawerResponse{}, common.DBError{ErrorMsg: err}
 	}
 
+	releaseTypes := []collectionEntity.ReleaseType{}
+	if err := r.db.Model(&collectionEntity.ReleaseType{}).
+		Order("name ASC").
+		Find(&releaseTypes).Error; err != nil {
+		return collectionEntity.CollectionFilterDrawerResponse{}, common.DBError{ErrorMsg: err}
+	}
+
 	drawer.CollectionTypes = make([]collectionEntity.CollectionTypeFilterItem, 0, len(rows))
 	for _, row := range rows {
 		drawer.CollectionTypes = append(drawer.CollectionTypes, collectionEntity.CollectionTypeFilterItem{
 			ID:                 row.ID,
 			CollectionTypeName: row.Name,
+		})
+	}
+
+	drawer.ReleaseTypes = make([]collectionEntity.ReleaseTypeResponse, 0, len(releaseTypes))
+	for _, releaseType := range releaseTypes {
+		drawer.ReleaseTypes = append(drawer.ReleaseTypes, collectionEntity.ReleaseTypeResponse{
+			ID:              releaseType.ID,
+			ReleaseTypeName: releaseType.ReleaseTypeName,
 		})
 	}
 
