@@ -36,6 +36,8 @@ func main() {
 		"CREATE INDEX IF NOT EXISTS idx_collections_status ON collections (status)",
 		"CREATE INDEX IF NOT EXISTS idx_pictures_collection_id_deleted_at ON pictures (collection_id, deleted_at)",
 		"CREATE INDEX IF NOT EXISTS idx_addons_collection_id_deleted_at ON addons (collection_id, deleted_at)",
+		"CREATE INDEX IF NOT EXISTS idx_grades_deleted_at_id ON grades (deleted_at, id)",
+		"CREATE INDEX IF NOT EXISTS idx_collections_grade_id_deleted_at ON collections (grade_id, deleted_at)",
 	}
 	for _, stmt := range indexStatements {
 		if err := db.Exec(stmt).Error; err != nil {
