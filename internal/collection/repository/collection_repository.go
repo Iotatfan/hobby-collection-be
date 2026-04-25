@@ -58,6 +58,13 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		SeriesID         int                                `gorm:"column:series_id"`
 		SeriesName       string                             `gorm:"column:series_name"`
 	}
+	type addonDetailRow struct {
+		ID               int    `gorm:"column:id"`
+		AddonName        string `gorm:"column:addon_name"`
+		CollectionID     int    `gorm:"column:collection_id"`
+		ManufacturerID   int    `gorm:"column:manufacturer"`
+		ManufacturerName string `gorm:"column:manufacturer_name"`
+	}
 
 	row := collectionDetailRow{}
 	result := r.db.Table("collections c").
@@ -101,6 +108,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 
 	pictures := []collectionEntity.Picture{}
 	addons := []collectionEntity.Addon{}
+	addonRows := []addonDetailRow{}
 	var picturesErr error
 	var addonsErr error
 	var wg sync.WaitGroup
@@ -118,15 +126,19 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 
 	go func() {
 		defer wg.Done()
-		addonsErr = r.db.Model(&collectionEntity.Addon{}).
-			Select("id", "addon_name", "collection_id", "manufacturer", "created_at", "updated_at").
-			Preload("Manufacturer", func(db *gorm.DB) *gorm.DB {
-				return db.Select("id", "name")
-			}).
-			Where("collection_id = ? AND deleted_at IS NULL", id).
-			Order("created_at DESC").
-			Order("id DESC").
-			Find(&addons).Error
+		addonsErr = r.db.Table("addons a").
+			Select(`
+				a.id,
+				a.addon_name,
+				a.collection_id,
+				a.manufacturer,
+				COALESCE(m.name, '') AS manufacturer_name
+			`).
+			Joins("LEFT JOIN manufacturers m ON m.id = a.manufacturer AND m.deleted_at IS NULL").
+			Where("a.collection_id = ? AND a.deleted_at IS NULL", id).
+			Order("a.created_at DESC").
+			Order("a.id DESC").
+			Scan(&addonRows).Error
 	}()
 
 	wg.Wait()
@@ -137,6 +149,19 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 				wrapErr("load addons", addonsErr),
 			),
 		}
+	}
+	addons = make([]collectionEntity.Addon, 0, len(addonRows))
+	for _, addonRow := range addonRows {
+		addons = append(addons, collectionEntity.Addon{
+			ID:             addonRow.ID,
+			AddonName:      addonRow.AddonName,
+			ManufacturerID: addonRow.ManufacturerID,
+			CollectionID:   addonRow.CollectionID,
+			Manufacturer: collectionEntity.Manufacturer{
+				ID:               addonRow.ManufacturerID,
+				ManufacturerName: addonRow.ManufacturerName,
+			},
+		})
 	}
 
 	collection := collectionEntity.Collection{
