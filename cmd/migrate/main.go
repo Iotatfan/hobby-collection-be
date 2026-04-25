@@ -34,6 +34,8 @@ func main() {
 		"CREATE INDEX IF NOT EXISTS idx_collections_manufacturer ON collections (manufacturer)",
 		"CREATE INDEX IF NOT EXISTS idx_collections_series_id ON collections (series_id)",
 		"CREATE INDEX IF NOT EXISTS idx_collections_status ON collections (status)",
+		"CREATE INDEX IF NOT EXISTS idx_collections_built_at_id ON collections (built_at DESC, id DESC) WHERE deleted_at IS NULL",
+		"CREATE INDEX IF NOT EXISTS idx_collections_acquired_at_id ON collections (acquired_at DESC, id DESC) WHERE deleted_at IS NULL",
 		"CREATE INDEX IF NOT EXISTS idx_pictures_collection_id_deleted_at ON pictures (collection_id, deleted_at)",
 		"CREATE INDEX IF NOT EXISTS idx_addons_collection_id_deleted_at ON addons (collection_id, deleted_at)",
 	}
