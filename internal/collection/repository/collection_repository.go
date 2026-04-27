@@ -392,13 +392,13 @@ func getCollectionListSort(sort string) (string, string) {
 
 	switch sort {
 	case "latest", "latest_built":
-		return "c.built_at DESC NULLS LAST", "c.acquired_at DESC NULLS LAST, c.id DESC"
+		return "COALESCE(c.built_at, c.acquired_at) DESC NULLS LAST", "c.id DESC"
 	case "name", "name_asc":
 		return "c.title ASC", "c.id ASC"
 	case "name_desc":
 		return "c.title DESC", "c.id DESC"
 	default:
-		return "c.built_at DESC NULLS LAST", "c.acquired_at DESC NULLS LAST, c.id DESC"
+		return "COALESCE(c.built_at, c.acquired_at) DESC NULLS LAST", "c.id DESC"
 	}
 }
 
