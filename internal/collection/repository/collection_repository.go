@@ -23,6 +23,7 @@ type CollectionRepository interface {
 	GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error)
 	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
 	GetAddonsByCollectionID(id int) ([]collectionEntity.Addon, error)
+	GetCollectionStatistics() (collectionEntity.StatisticResponse, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
 	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error)
 }
@@ -707,6 +708,20 @@ func (r *collectionRepository) GetAddonsByCollectionID(id int) ([]collectionEnti
 		return []collectionEntity.Addon{}, common.DBError{ErrorMsg: err}
 	}
 	return addons, nil
+}
+
+func (r *collectionRepository) GetCollectionStatistics() (collectionEntity.StatisticResponse, error) {
+	var statistic collectionEntity.StatisticResponse
+
+	err := r.db.Model(&collectionEntity.Collection{}).
+		Select("COUNT(*) as total_count, COUNT(*) FILTER (WHERE CAST(status AS int) = ?) AS completed_count, COUNT(*) FILTER (WHERE CAST(status AS int) = ?) AS backlog_count, COUNT(*) FILTER (WHERE release_type IN (?, ?, ?)) AS limited_count",
+			collectionEntity.Built, collectionEntity.Backlog, 2, 3, 4).
+		Where("deleted_at IS NULL").Scan(&statistic).Error
+	if err != nil {
+		return collectionEntity.StatisticResponse{}, common.DBError{ErrorMsg: err}
+	}
+
+	return statistic, nil
 }
 
 func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error) {

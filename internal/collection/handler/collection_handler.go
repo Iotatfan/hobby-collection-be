@@ -139,6 +139,15 @@ func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 	common.SuccessResponse(c, result, http.StatusCreated)
 }
 
+func (h *CollectiontHandler) GetCollectionStatistics(c *gin.Context) {
+	result, err := h.collectionService.GetCollectionStatistics()
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	common.SuccessResponse(c, result, http.StatusOK)
+}
+
 func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 	inputID := c.Param("id")
 	id, err := strconv.Atoi(inputID)

@@ -24,6 +24,7 @@ type CollectionService interface {
 	GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error)
+	GetCollectionStatistics() (collectionEntity.StatisticResponse, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 }
@@ -69,6 +70,10 @@ func (s *collectionService) GetCollectionDrawer() (collectionEntity.CollectionDr
 
 func (s *collectionService) GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error) {
 	return s.collectionRepo.GetCollectionFilter()
+}
+
+func (s *collectionService) GetCollectionStatistics() (collectionEntity.StatisticResponse, error) {
+	return s.collectionRepo.GetCollectionStatistics()
 }
 
 func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
@@ -595,7 +600,7 @@ func mapCollectionResponse(collection collectionEntity.Collection, pictures []co
 	collectionTypeResp := collectionEntity.CollectionTypeResponse{
 		ID:                 collection.CollectionType.ID,
 		CollectionTypeName: collection.CollectionType.CollectionTypeName,
-		Scale: collection.CollectionType.Scale.Name,
+		Scale:              collection.CollectionType.Scale.Name,
 		Grade: collectionEntity.GradeResponse{
 			ID:               collection.CollectionType.Grade.ID,
 			Name:             collection.CollectionType.Grade.Name,
