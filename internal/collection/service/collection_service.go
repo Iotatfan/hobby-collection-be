@@ -23,7 +23,7 @@ type CollectionService interface {
 	GetCollectionByID(id int) (collectionEntity.CollectionDetailResponse, error)
 	GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
-	GetCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, error)
+	GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 }
@@ -67,8 +67,8 @@ func (s *collectionService) GetCollectionDrawer() (collectionEntity.CollectionDr
 	return s.collectionRepo.GetCollectionDrawer()
 }
 
-func (s *collectionService) GetCollectionFilterDrawer() (collectionEntity.CollectionFilterDrawerResponse, error) {
-	return s.collectionRepo.GetCollectionFilterDrawer()
+func (s *collectionService) GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error) {
+	return s.collectionRepo.GetCollectionFilter()
 }
 
 func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
@@ -80,7 +80,7 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 		}
 	}()
 
-	log.Printf("[upload] start title=%q grade_id=%d release_type_id=%d manufacturer_id=%d series_id=%d pictures=%d", payload.Title, payload.GradeID, payload.ReleaseTypeID, payload.ManufacturerID, payload.SeriesID, len(payload.Pictures))
+	log.Printf("[upload] start title=%q grade_id=%d scale_id=%d release_type_id=%d manufacturer_id=%d series_id=%d pictures=%d", payload.Title, payload.GradeID, payload.ScaleID, payload.ReleaseTypeID, payload.ManufacturerID, payload.SeriesID, len(payload.Pictures))
 
 	if payload.Cover != nil {
 		coverURL, err := s.uploadSingleImage(context.Background(), payload.Cover, coverUploadFolder)
@@ -595,12 +595,11 @@ func mapCollectionResponse(collection collectionEntity.Collection, pictures []co
 	collectionTypeResp := collectionEntity.CollectionTypeResponse{
 		ID:                 collection.CollectionType.ID,
 		CollectionTypeName: collection.CollectionType.CollectionTypeName,
-		Scale:              collection.CollectionType.Scale,
+		Scale: collection.CollectionType.Scale.Name,
 		Grade: collectionEntity.GradeResponse{
 			ID:               collection.CollectionType.Grade.ID,
 			Name:             collection.CollectionType.Grade.Name,
 			ShortName:        collection.CollectionType.Grade.ShortName,
-			ScaleID:          collection.CollectionType.Grade.ScaleID,
 			CollectionTypeID: collection.CollectionType.Grade.CollectionTypeID,
 		},
 	}

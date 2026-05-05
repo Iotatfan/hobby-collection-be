@@ -83,13 +83,13 @@ func (h *CollectiontHandler) GetCollectionDrawer(c *gin.Context) {
 	common.SuccessResponse(c, result, http.StatusOK)
 }
 
-func (h *CollectiontHandler) GetCollectionFilterDrawer(c *gin.Context) {
+func (h *CollectiontHandler) GetCollectionFilter(c *gin.Context) {
 	startedAt := time.Now()
 	defer func() {
 		log.Printf("[http] path=%s method=%s duration=%s status=%d", c.FullPath(), c.Request.Method, time.Since(startedAt), c.Writer.Status())
 	}()
 
-	result, err := h.collectionService.GetCollectionFilterDrawer()
+	result, err := h.collectionService.GetCollectionFilter()
 	if err != nil {
 		common.ErrorResponse(c, err)
 		return

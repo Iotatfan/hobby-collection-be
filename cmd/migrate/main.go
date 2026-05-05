@@ -29,20 +29,28 @@ func main() {
 	}
 
 	indexStatements := []string{
+		"ALTER TABLE collections ADD COLUMN IF NOT EXISTS scale_id bigint",
+		"UPDATE collections c SET scale_id = g.scale_id FROM grades g WHERE c.grade_id = g.id AND c.scale_id IS NULL AND g.scale_id IS NOT NULL",
 		"CREATE INDEX IF NOT EXISTS idx_collections_grade_id ON collections (grade_id)",
+		"CREATE INDEX IF NOT EXISTS idx_collections_scale_id ON collections (scale_id)",
 		"CREATE INDEX IF NOT EXISTS idx_collections_release_type ON collections (release_type)",
 		"CREATE INDEX IF NOT EXISTS idx_collections_manufacturer ON collections (manufacturer)",
 		"CREATE INDEX IF NOT EXISTS idx_collections_series_id ON collections (series_id)",
 		"CREATE INDEX IF NOT EXISTS idx_collections_status ON collections (status)",
 		"CREATE INDEX IF NOT EXISTS idx_collections_active_built_at_acquired_at_id ON collections (built_at DESC NULLS LAST, acquired_at DESC NULLS LAST, id DESC) WHERE deleted_at IS NULL",
 		"CREATE INDEX IF NOT EXISTS idx_collections_active_grade_id ON collections (grade_id) WHERE deleted_at IS NULL",
+		"CREATE INDEX IF NOT EXISTS idx_collections_active_scale_id ON collections (scale_id) WHERE deleted_at IS NULL",
 		"CREATE INDEX IF NOT EXISTS idx_collections_active_release_type ON collections (release_type) WHERE deleted_at IS NULL",
 		"CREATE INDEX IF NOT EXISTS idx_collections_active_manufacturer ON collections (manufacturer) WHERE deleted_at IS NULL",
 		"CREATE INDEX IF NOT EXISTS idx_collections_active_series_id ON collections (series_id) WHERE deleted_at IS NULL",
 		"CREATE INDEX IF NOT EXISTS idx_collections_active_status ON collections (status) WHERE deleted_at IS NULL",
+		"DROP INDEX IF EXISTS idx_scales_collection_type_id",
+		"ALTER TABLE scales DROP COLUMN IF EXISTS collection_type_id",
 		"CREATE INDEX IF NOT EXISTS idx_pictures_collection_id_deleted_at_created_at_id ON pictures (collection_id, deleted_at, created_at DESC, id DESC)",
 		"CREATE INDEX IF NOT EXISTS idx_addons_collection_id_deleted_at_created_at_id ON addons (collection_id, deleted_at, created_at DESC, id DESC)",
 		"CREATE INDEX IF NOT EXISTS idx_collection_types_name_active ON collection_types (name) WHERE deleted_at IS NULL",
+		"CREATE INDEX IF NOT EXISTS idx_grades_collection_type_id_active ON grades (collection_type_id) WHERE deleted_at IS NULL",
+		"CREATE INDEX IF NOT EXISTS idx_scales_name_active ON scales (name) WHERE deleted_at IS NULL",
 		"CREATE INDEX IF NOT EXISTS idx_release_types_name_active ON release_types (name) WHERE deleted_at IS NULL",
 	}
 	for _, stmt := range indexStatements {

@@ -8,6 +8,7 @@ import (
 type UploadCollectionRequest struct {
 	Title               string                  `form:"title" binding:"required"`
 	GradeID             int                     `form:"grade_id" binding:"required"`
+	ScaleID             int                     `form:"scale_id" binding:"required"`
 	ReleaseTypeID       int                     `form:"release_type_id" binding:"required"`
 	ManufacturerID      int                     `form:"manufacturer_id" binding:"required"`
 	Status              COLLECTION_STATUS       `form:"status"`
@@ -26,6 +27,7 @@ type UploadCollectionRequest struct {
 type UpdateCollectionRequest struct {
 	Title                     *string                 `form:"title"`
 	GradeID                   *int                    `form:"grade_id"`
+	ScaleID                   *int                    `form:"scale_id"`
 	ReleaseTypeID             *int                    `form:"release_type_id"`
 	ManufacturerID            *int                    `form:"manufacturer_id"`
 	Status                    *COLLECTION_STATUS      `form:"status"`
@@ -53,6 +55,7 @@ type UpdateCollectionRequest struct {
 type CollectionFilterRequest struct {
 	CollectionTypeID int               `form:"collection_type_id"`
 	GradeID          int               `form:"grade_id"`
+	ScaleID          int               `form:"scale_id"`
 	ReleaseTypeIDs   []int             `form:"release_type_id"`
 	ManufacturerID   int               `form:"manufacturer_id"`
 	SeriesID         int               `form:"series_id"`

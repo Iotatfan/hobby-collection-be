@@ -10,6 +10,7 @@ import (
 type Collection struct {
 	ID             int               `gorm:"primaryKey;autoIncrement;column:id"`
 	GradeID        int               `gorm:"column:grade_id"`
+	ScaleID        int               `gorm:"column:scale_id"`
 	CollectionType CollectionType    `gorm:"-"`
 	Title          string            `gorm:"column:title"`
 	ReleaseTypeID  int               `gorm:"column:release_type"`
@@ -40,7 +41,7 @@ type Addon struct {
 type CollectionType struct {
 	ID                 int    `gorm:"primaryKey;autoIncrement;column:id"`
 	CollectionTypeName string `gorm:"column:name"`
-	Scale              string `gorm:"-"`
+	Scale              Scale  `gorm:"-"`
 	Grade              Grade  `gorm:"foreignKey:CollectionTypeID;references:ID"`
 	common.Model       `gorm:"embedded"`
 }
@@ -49,8 +50,6 @@ type Grade struct {
 	ID               int    `gorm:"primaryKey;column:id"`
 	Name             string `gorm:"column:name"`
 	ShortName        string `gorm:"column:short_name"`
-	ScaleID          int    `gorm:"column:scale_id"`
-	Scale            Scale  `gorm:"foreignKey:ScaleID"`
 	CollectionTypeID int    `gorm:"column:collection_type_id"`
 	common.Model     `gorm:"embedded"`
 }
