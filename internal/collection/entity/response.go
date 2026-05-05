@@ -44,25 +44,27 @@ type CollectionTypeResponse struct {
 }
 
 type CollectionDrawerResponse struct {
-	Grades        []GradeDrawerItem      `json:"grades"`
-	ReleaseTypes  []ReleaseTypeResponse  `json:"release_types"`
-	Manufacturers []ManufacturerResponse `json:"manufacturers"`
-	Series        []SeriesResponse       `json:"series"`
+	Grades        []GradeDrawerItem           `json:"grades"`
+	Scales        []ScaleResponse             `json:"scales"`
+	ReleaseTypes  []ReleaseTypeFilterResponse `json:"release_types"`
+	Manufacturers []ManufacturerResponse      `json:"manufacturers"`
+	Series        []SeriesResponse            `json:"series"`
 }
 
 type GradeDrawerItem struct {
 	GradeID            int    `json:"grade_id"`
 	CollectionTypeName string `json:"collection_type_name"`
 	GradeShortName     string `json:"grade_short_name"`
-	Scale              string `json:"scale"`
 }
 
-type CollectionFilterDrawerResponse struct {
-	CollectionTypes []CollectionTypeFilterItem `json:"collection_types"`
-	ReleaseTypes    []ReleaseTypeResponse      `json:"release_types"`
+type CollectionFilterResponse struct {
+	CollectionTypes []CollectionTypeFilterResponse `json:"collection_types"`
+	ReleaseTypes    []ReleaseTypeFilterResponse    `json:"release_types"`
+	GunplaGrades    []GunplaGradeFilterResponse    `json:"gunpla_grades"`
+	FiguresScales   []FiguresScaleFilterResponse   `json:"figures_scales"`
 }
 
-type CollectionTypeFilterItem struct {
+type CollectionTypeFilterResponse struct {
 	ID                 int    `json:"id"`
 	CollectionTypeName string `json:"name"`
 }
@@ -77,8 +79,28 @@ type GradeResponse struct {
 	ID               int    `json:"id"`
 	Name             string `json:"name"`
 	ShortName        string `json:"short_name"`
-	ScaleID          int    `json:"scale_id"`
 	CollectionTypeID int    `json:"collection_type_id"`
+}
+
+type GunplaGradeFilterResponse struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	ShortName string `json:"short_name"`
+}
+
+type ScaleResponse struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type FiguresScaleFilterResponse struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type ManufacturerResponse struct {
+	ID               int    `json:"id"`
+	ManufacturerName string `json:"name"`
 }
 
 type ReleaseTypeResponse struct {
@@ -86,9 +108,9 @@ type ReleaseTypeResponse struct {
 	ReleaseTypeName string `json:"name"`
 }
 
-type ManufacturerResponse struct {
-	ID               int    `json:"id"`
-	ManufacturerName string `json:"name"`
+type ReleaseTypeFilterResponse struct {
+	ID              int    `json:"id"`
+	ReleaseTypeName string `json:"name"`
 }
 
 type SeriesResponse struct {
