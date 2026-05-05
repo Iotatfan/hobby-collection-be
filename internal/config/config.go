@@ -26,6 +26,12 @@ type JWTConfig struct {
 	Refresh int    `mapstructure:"refresh" yaml:"refresh"`
 }
 
+type RateLimitConfig struct {
+	ReadRequestsPerMinute  int `mapstructure:"read_requests_per_minute" yaml:"read_requests_per_minute"`
+	WriteRequestsPerMinute int `mapstructure:"write_requests_per_minute" yaml:"write_requests_per_minute"`
+	Burst                  int `mapstructure:"burst" yaml:"burst"`
+}
+
 type CloudinaryConfig struct {
 	Name   string `mapstructure:"name" yaml:"name"`
 	Key    string `mapstructure:"key" yaml:"key"`
@@ -43,6 +49,7 @@ type Config struct {
 	Server     ServerConfig     `mapstructure:"server" yaml:"server"`
 	Postgres   PostgresConfig   `mapstructure:"postgres" yaml:"postgres"`
 	JWT        JWTConfig        `mapstructure:"jwt" yaml:"jwt"`
+	RateLimit  RateLimitConfig  `mapstructure:"rate_limit" yaml:"rate_limit"`
 	Cloudinary CloudinaryConfig `mapstructure:"cloudinary" yaml:"cloudinary"`
 	Redis      RedisConfig      `mapstructure:"redis" yaml:"redis"`
 }
