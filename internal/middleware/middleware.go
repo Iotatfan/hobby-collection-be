@@ -2,7 +2,10 @@ package middleware
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -10,6 +13,55 @@ import (
 	"github.com/iotatfan/hobby-collection-be/internal/config"
 	"github.com/iotatfan/hobby-collection-be/internal/text"
 )
+
+var requestSeq uint64
+
+const (
+	defaultReadRequestsPerMinute  = 120
+	defaultWriteRequestsPerMinute = 20
+	defaultRateLimitBurst         = 10
+	rateLimitWindow               = time.Minute
+)
+
+type rateLimitState struct {
+	windowStartedAt time.Time
+	count           int
+}
+
+type rateLimiter struct {
+	mu       sync.Mutex
+	requests map[string]rateLimitState
+}
+
+func newRateLimiter() *rateLimiter {
+	return &rateLimiter{
+		requests: make(map[string]rateLimitState),
+	}
+}
+
+func (r *rateLimiter) allow(key string, limit int, now time.Time) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	state, exists := r.requests[key]
+	if !exists || now.Sub(state.windowStartedAt) >= rateLimitWindow {
+		r.requests[key] = rateLimitState{
+			windowStartedAt: now,
+			count:           1,
+		}
+		return true
+	}
+
+	if state.count >= limit {
+		return false
+	}
+
+	state.count++
+	r.requests[key] = state
+	return true
+}
+
+var globalRateLimiter = newRateLimiter()
 
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -20,6 +72,51 @@ func CORS() gin.HandlerFunc {
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func RateLimit() gin.HandlerFunc {
+	cfg := config.GetConfig().RateLimit
+	readLimit := cfg.ReadRequestsPerMinute
+	writeLimit := cfg.WriteRequestsPerMinute
+	burst := cfg.Burst
+
+	if readLimit <= 0 {
+		readLimit = defaultReadRequestsPerMinute
+	}
+	if writeLimit <= 0 {
+		writeLimit = defaultWriteRequestsPerMinute
+	}
+	if burst < 0 {
+		burst = 0
+	}
+	if burst == 0 {
+		burst = defaultRateLimitBurst
+	}
+
+	return func(c *gin.Context) {
+		limit := readLimit
+		scope := "read"
+		if c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead && c.Request.Method != http.MethodOptions {
+			limit = writeLimit
+			scope = "write"
+		}
+
+		limit += burst
+		clientIP := c.ClientIP()
+		now := time.Now()
+		key := scope + ":" + clientIP
+		if !globalRateLimiter.allow(key, limit, now) {
+			c.Header("Retry-After", strconv.Itoa(int(rateLimitWindow/time.Second)))
+			common.ErrorResponse(c, common.ServiceError{
+				ErrorMsg: "rate limit exceeded",
+				Code:     http.StatusTooManyRequests,
+			})
+			c.Abort()
 			return
 		}
 

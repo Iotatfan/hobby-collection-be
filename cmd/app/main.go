@@ -33,6 +33,7 @@ func handleRequests() {
 
 	g := gin.Default()
 	g.Use(middleware.CORS())
+	g.Use(middleware.RateLimit())
 
 	router.SetDefaultRoute(g)
 	collection.Register(g, db, cld)

@@ -124,3 +124,10 @@ type AddonResponse struct {
 	CollectionID int                  `json:"collection_id"`
 	Manufacturer ManufacturerResponse `json:"manufacturer"`
 }
+
+type StatisticResponse struct {
+	TotalCount     int `json:"total_count"`
+	CompletedCount int `json:"completed_count"`
+	BacklogCount   int `json:"backlog_count"`
+	LimitedCount   int `json:"limited_count"` // limited/exclusive/p-bandai items count
+}
