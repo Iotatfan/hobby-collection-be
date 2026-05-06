@@ -30,7 +30,6 @@ func main() {
 
 	indexStatements := []string{
 		"ALTER TABLE collections ADD COLUMN IF NOT EXISTS scale_id bigint",
-		"UPDATE collections c SET scale_id = g.scale_id FROM grades g WHERE c.grade_id = g.id AND c.scale_id IS NULL AND g.scale_id IS NOT NULL",
 		"CREATE INDEX IF NOT EXISTS idx_collections_grade_id ON collections (grade_id)",
 		"CREATE INDEX IF NOT EXISTS idx_collections_scale_id ON collections (scale_id)",
 		"CREATE INDEX IF NOT EXISTS idx_collections_release_type ON collections (release_type)",
