@@ -90,8 +90,8 @@ type Manufacturer struct {
 type COLLECTION_STATUS string
 
 const (
-	Whishlist = 0
-	Backlog   = 1
-	Owned     = 2
-	Built     = 3
+	Wishlist = 0
+	Backlog  = 1
+	Owned    = 2
+	Built    = 3
 )

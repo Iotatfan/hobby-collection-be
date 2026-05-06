@@ -6,7 +6,7 @@ import (
 	"github.com/iotatfan/hobby-collection-be/internal/middleware"
 )
 
-func SetCollectionRoutes(g *gin.Engine, cH handler.CollectiontHandler) {
+func SetCollectionRoutes(g *gin.Engine, cH handler.CollectionHandler) {
 	g.GET("/collection/drawer", cH.GetCollectionDrawer)
 	g.GET("/collection/filter", cH.GetCollectionFilter)
 	g.GET("/collection/statistics", cH.GetCollectionStatistics)
