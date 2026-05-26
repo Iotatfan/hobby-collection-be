@@ -17,6 +17,7 @@ type CollectionDetailResponse struct {
 	Cover        string                 `json:"cover"`
 	Pictures     []string               `json:"pictures"`
 	Addons       []AddonResponse        `json:"addons"`
+	MetadataTags []MetadataTagResponse  `json:"metadata_tags"`
 	Description  string                 `json:"description"`
 }
 
@@ -123,6 +124,13 @@ type AddonResponse struct {
 	AddonName    string               `json:"name"`
 	CollectionID int                  `json:"collection_id"`
 	Manufacturer ManufacturerResponse `json:"manufacturer"`
+}
+
+type MetadataTagResponse struct {
+	ID   int               `json:"id"`
+	Slug string            `json:"slug"`
+	Name string            `json:"name"`
+	Type METADATA_TAG_TYPE `json:"type"`
 }
 
 type StatisticResponse struct {

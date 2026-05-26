@@ -627,6 +627,16 @@ func mapCollectionResponse(collection collectionEntity.Collection, pictures []co
 		})
 	}
 
+	metadataTagsResp := make([]collectionEntity.MetadataTagResponse, 0, len(collection.MetadataTags))
+	for _, metadataTag := range collection.MetadataTags {
+		metadataTagsResp = append(metadataTagsResp, collectionEntity.MetadataTagResponse{
+			ID:   metadataTag.ID,
+			Slug: metadataTag.Slug,
+			Name: metadataTag.Name,
+			Type: metadataTag.Type,
+		})
+	}
+
 	result := collectionEntity.CollectionDetailResponse{
 		ID:    collection.ID,
 		Title: collection.Title,
@@ -648,8 +658,9 @@ func mapCollectionResponse(collection collectionEntity.Collection, pictures []co
 		AcquiredAt:  acquiredAt,
 		Cover:       collection.Cover,
 		Description: collection.Description,
-		Pictures:    picturesResp,
-		Addons:      addonsResp,
+		Pictures:     picturesResp,
+		Addons:       addonsResp,
+		MetadataTags: metadataTagsResp,
 	}
 
 	return result

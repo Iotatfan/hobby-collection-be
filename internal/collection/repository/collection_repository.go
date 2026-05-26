@@ -87,6 +87,12 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		ManufacturerID   int            `gorm:"column:manufacturer"`
 		ManufacturerName sql.NullString `gorm:"column:manufacturer_name"`
 	}
+	type metadataTagRow struct {
+		ID   int    `gorm:"column:id"`
+		Slug string `gorm:"column:slug"`
+		Name string `gorm:"column:name"`
+		Type int    `gorm:"column:type"`
+	}
 
 	row := collectionDetailRow{}
 	mainQueryStartedAt := time.Now()
@@ -133,10 +139,12 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 	pictures := []collectionEntity.Picture{}
 	addons := []collectionEntity.Addon{}
 	addonRows := []addonDetailRow{}
+	metadataTagRows := []metadataTagRow{}
 	var picturesErr error
 	var addonsErr error
+	var metadataTagsErr error
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 
 	go func() {
 		defer wg.Done()
@@ -169,12 +177,30 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		log.Printf("[repo.collection.detail.addons_query] collection_id=%d duration=%s rows=%d err=%v", id, time.Since(queryStartedAt), len(addonRows), addonsErr)
 	}()
 
+	go func() {
+		defer wg.Done()
+		queryStartedAt := time.Now()
+		metadataTagsErr = r.db.Table("metadata_tags mt").
+			Select(`
+				mt.id,
+				mt.tag AS slug,
+				mt.name,
+				mt.type
+			`).
+			Joins("JOIN collection_metadata_tags cmt ON cmt.metadata_tags_id = mt.id").
+			Where("cmt.collection_id = ? AND mt.deleted_at IS NULL", id).
+			Order("mt.name ASC").
+			Scan(&metadataTagRows).Error
+		log.Printf("[repo.collection.detail.metadata_tags_query] collection_id=%d duration=%s rows=%d err=%v", id, time.Since(queryStartedAt), len(metadataTagRows), metadataTagsErr)
+	}()
+
 	wg.Wait()
-	if picturesErr != nil || addonsErr != nil {
+	if picturesErr != nil || addonsErr != nil || metadataTagsErr != nil {
 		return collectionEntity.Collection{}, common.DBError{
 			ErrorMsg: errors.Join(
 				wrapErr("load pictures", picturesErr),
 				wrapErr("load addons", addonsErr),
+				wrapErr("load metadata tags", metadataTagsErr),
 			),
 		}
 	}
@@ -189,6 +215,16 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 				ID:               addonRow.ManufacturerID,
 				ManufacturerName: nullString(addonRow.ManufacturerName),
 			},
+		})
+	}
+
+	metadataTags := make([]collectionEntity.MetadataTags, 0, len(metadataTagRows))
+	for _, metadataTagRow := range metadataTagRows {
+		metadataTags = append(metadataTags, collectionEntity.MetadataTags{
+			ID:   metadataTagRow.ID,
+			Slug: metadataTagRow.Slug,
+			Name: metadataTagRow.Name,
+			Type: collectionEntity.METADATA_TAG_TYPE(metadataTagRow.Type),
 		})
 	}
 
@@ -231,8 +267,9 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			ID:         nullInt(row.SeriesID),
 			SeriesName: nullString(row.SeriesName),
 		},
-		Pictures: &pictures,
-		Addons:   &addons,
+		Pictures:     &pictures,
+		Addons:       &addons,
+		MetadataTags: metadataTags,
 	}
 
 	return collection, nil
