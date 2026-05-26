@@ -88,7 +88,7 @@ type Manufacturer struct {
 
 type MetadataTags struct {
 	ID           int               `gorm:"primaryKey;autoIncrement;column:id"`
-	Slug         string            `gorm:"column:tag;uniqueIndex"`
+	Slug         string            `gorm:"column:slug;uniqueIndex"`
 	Name         string            `gorm:"column:name"`
 	Type         METADATA_TAG_TYPE `gorm:"column:type"`
 	common.Model `gorm:"embedded"`

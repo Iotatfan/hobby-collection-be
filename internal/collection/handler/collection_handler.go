@@ -121,6 +121,24 @@ func (h *CollectionHandler) UploadCollection(c *gin.Context) {
 		req.AddonManufacturerID = addonManufacturerIDs
 	}
 
+	modificationIDs, hasModificationIDs, err := parseFlexibleIntFormArray(c, "modifications")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	if hasModificationIDs {
+		req.ModificationIDs = modificationIDs
+	}
+
+	featureIDs, hasFeatureIDs, err := parseFlexibleIntFormArray(c, "features")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	if hasFeatureIDs {
+		req.FeatureIDs = featureIDs
+	}
+
 	if req.Cover == nil {
 		common.ErrorResponse(c, common.ValError{ErrorMsg: errors.New("the field Cover is required")})
 		return
@@ -226,6 +244,30 @@ func (h *CollectionHandler) UpdateCollection(c *gin.Context) {
 	if hasDeletedAddonIDs {
 		req.DeletedAddonIDsPresent = true
 		req.DeletedAddonIDs = deletedAddonIDs
+	}
+
+	modificationIDs, hasModificationIDs, err := parseFlexibleIntFormArray(c, "modifications")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	if hasModificationIDs {
+		req.ModificationIDsPresent = true
+		req.ModificationIDs = modificationIDs
+	}
+
+	featureIDs, hasFeatureIDs, err := parseFlexibleIntFormArray(c, "features")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	if hasFeatureIDs {
+		req.FeatureIDsPresent = true
+		req.FeatureIDs = featureIDs
+	}
+
+	if req.ModificationIDsPresent || req.FeatureIDsPresent {
+		req.MetadataTagIDsPresent = true
 	}
 
 	result, err := h.collectionService.UpdateCollection(id, req)

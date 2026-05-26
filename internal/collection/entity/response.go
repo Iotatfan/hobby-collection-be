@@ -5,20 +5,21 @@ import (
 )
 
 type CollectionDetailResponse struct {
-	ID           int                    `json:"id"`
-	Title        string                 `json:"title"`
-	Type         CollectionTypeResponse `json:"type"`
-	ReleaseType  ReleaseTypeResponse    `json:"release_type"`
-	Manufacturer ManufacturerResponse   `json:"manufacturer"`
-	Status       COLLECTION_STATUS      `json:"status"`
-	Series       SeriesResponse         `json:"series"`
-	BuiltAt      *time.Time             `json:"built_at"`
-	AcquiredAt   *time.Time             `json:"acquired_at"`
-	Cover        string                 `json:"cover"`
-	Pictures     []string               `json:"pictures"`
-	Addons       []AddonResponse        `json:"addons"`
-	MetadataTags []MetadataTagResponse  `json:"metadata_tags"`
-	Description  string                 `json:"description"`
+	ID            int                    `json:"id"`
+	Title         string                 `json:"title"`
+	Type          CollectionTypeResponse `json:"type"`
+	ReleaseType   ReleaseTypeResponse    `json:"release_type"`
+	Manufacturer  ManufacturerResponse   `json:"manufacturer"`
+	Status        COLLECTION_STATUS      `json:"status"`
+	Series        SeriesResponse         `json:"series"`
+	BuiltAt       *time.Time             `json:"built_at"`
+	AcquiredAt    *time.Time             `json:"acquired_at"`
+	Cover         string                 `json:"cover"`
+	Pictures      []string               `json:"pictures"`
+	Addons        []AddonResponse        `json:"addons"`
+	Modifications []MetadataTagResponse  `json:"modifications"`
+	Features      []MetadataTagResponse  `json:"features"`
+	Description   string                 `json:"description"`
 }
 
 type CollectionListResponse struct {
@@ -50,6 +51,8 @@ type CollectionDrawerResponse struct {
 	ReleaseTypes  []ReleaseTypeFilterResponse `json:"release_types"`
 	Manufacturers []ManufacturerResponse      `json:"manufacturers"`
 	Series        []SeriesResponse            `json:"series"`
+	Modifications []MetadataTagResponse       `json:"modifications"`
+	Features      []MetadataTagResponse       `json:"features"`
 }
 
 type GradeDrawerItem struct {

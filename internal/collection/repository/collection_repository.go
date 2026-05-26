@@ -23,6 +23,7 @@ type CollectionRepository interface {
 	GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error)
 	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
 	GetAddonsByCollectionID(id int) ([]collectionEntity.Addon, error)
+	GetMetadataTagsByIDs(ids []int) ([]collectionEntity.MetadataTags, error)
 	GetCollectionStatistics() (collectionEntity.StatisticResponse, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
 	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error)
@@ -183,7 +184,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		metadataTagsErr = r.db.Table("metadata_tags mt").
 			Select(`
 				mt.id,
-				mt.tag AS slug,
+				mt.slug AS slug,
 				mt.name,
 				mt.type
 			`).
@@ -490,13 +491,15 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 	releaseTypes := []collectionEntity.ReleaseType{}
 	manufacturers := []collectionEntity.Manufacturer{}
 	series := []collectionEntity.Series{}
+	metadataTags := []collectionEntity.MetadataTags{}
 
 	var scalesErr error
 	var releaseTypesErr error
 	var manufacturersErr error
 	var seriesErr error
+	var metadataTagsErr error
 	var drawerWG sync.WaitGroup
-	drawerWG.Add(4)
+	drawerWG.Add(5)
 
 	go func() {
 		defer drawerWG.Done()
@@ -526,14 +529,22 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 			Find(&series).Error
 	}()
 
+	go func() {
+		defer drawerWG.Done()
+		metadataTagsErr = r.db.Model(&collectionEntity.MetadataTags{}).
+			Order("type ASC, name ASC").
+			Find(&metadataTags).Error
+	}()
+
 	drawerWG.Wait()
-	if scalesErr != nil || releaseTypesErr != nil || manufacturersErr != nil || seriesErr != nil {
+	if scalesErr != nil || releaseTypesErr != nil || manufacturersErr != nil || seriesErr != nil || metadataTagsErr != nil {
 		return collectionEntity.CollectionDrawerResponse{}, common.DBError{
 			ErrorMsg: errors.Join(
 				wrapErr("load scales", scalesErr),
 				wrapErr("load release types", releaseTypesErr),
 				wrapErr("load manufacturers", manufacturersErr),
 				wrapErr("load series", seriesErr),
+				wrapErr("load metadata tags", metadataTagsErr),
 			),
 		}
 	}
@@ -568,6 +579,24 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 			ID:         item.ID,
 			SeriesName: item.SeriesName,
 		})
+	}
+
+	drawer.Modifications = make([]collectionEntity.MetadataTagResponse, 0)
+	drawer.Features = make([]collectionEntity.MetadataTagResponse, 0)
+	for _, metadataTag := range metadataTags {
+		resp := collectionEntity.MetadataTagResponse{
+			ID:   metadataTag.ID,
+			Slug: metadataTag.Slug,
+			Name: metadataTag.Name,
+			Type: metadataTag.Type,
+		}
+
+		switch metadataTag.Type {
+		case collectionEntity.Feature:
+			drawer.Features = append(drawer.Features, resp)
+		default:
+			drawer.Modifications = append(drawer.Modifications, resp)
+		}
 	}
 
 	return drawer, nil
@@ -809,7 +838,12 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 		}
 	}
 
-	err := r.db.Transaction(func(tx *gorm.DB) error {
+	metadataTags, err := r.GetMetadataTagsByIDs(payload.MetadataTagIDs)
+	if err != nil {
+		return collectionEntity.Collection{}, err
+	}
+
+	err = r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&collection).Error; err != nil {
 			return err
 		}
@@ -832,6 +866,12 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 			}
 		}
 
+		if len(metadataTags) > 0 {
+			if err := tx.Model(&collection).Association("MetadataTags").Replace(metadataTags); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -850,6 +890,15 @@ func wrapErr(scope string, err error) error {
 
 func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error) {
 	collection := collectionEntity.Collection{}
+
+	metadataTags := make([]collectionEntity.MetadataTags, 0)
+	if payload.MetadataTagIDsPresent {
+		var err error
+		metadataTags, err = r.GetMetadataTagsByIDs(payload.MetadataTagIDs)
+		if err != nil {
+			return collectionEntity.Collection{}, err
+		}
+	}
 
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.First(&collection, id).Error; err != nil {
@@ -981,6 +1030,12 @@ func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity
 			}
 		}
 
+		if payload.MetadataTagIDsPresent {
+			if err := tx.Model(&collection).Association("MetadataTags").Replace(metadataTags); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -991,4 +1046,21 @@ func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity
 	}
 
 	return collection, nil
+}
+
+func (r *collectionRepository) GetMetadataTagsByIDs(ids []int) ([]collectionEntity.MetadataTags, error) {
+	if len(ids) == 0 {
+		return []collectionEntity.MetadataTags{}, nil
+	}
+
+	metadataTags := make([]collectionEntity.MetadataTags, 0, len(ids))
+	if err := r.db.Where("id IN ?", ids).Find(&metadataTags).Error; err != nil {
+		return nil, common.DBError{ErrorMsg: err}
+	}
+
+	if len(metadataTags) != len(ids) {
+		return nil, common.ValError{ErrorMsg: errors.New("one or more metadata_tags do not exist")}
+	}
+
+	return metadataTags, nil
 }
