@@ -19,7 +19,10 @@ type UploadCollectionRequest struct {
 	Pictures            []*multipart.FileHeader `form:"pictures"`
 	AddonNames          []string                `form:"addon_names"`
 	AddonManufacturerID []int                   `form:"addons_manufacturer_id"`
+	ModificationIDs     []int                   `form:"modifications"`
+	FeatureIDs          []int                   `form:"features"`
 	Description         string                  `form:"description"`
+	MetadataTagIDs      []int                   `form:"-" json:"-"`
 	CoverURL            string                  `form:"-" json:"-"`
 	PictureURLs         []string                `form:"-" json:"-"`
 }
@@ -48,6 +51,12 @@ type UpdateCollectionRequest struct {
 	UpdateAddonIDs            []int                   `form:"update_addon_ids"`
 	UpdateAddonNames          []string                `form:"update_addon_names"`
 	UpdateAddonManufacturerID []int                   `form:"update_addons_manufacturer_id"`
+	ModificationIDs           []int                   `form:"modifications"`
+	FeatureIDs                []int                   `form:"features"`
+	ModificationIDsPresent    bool                    `form:"-" json:"-"`
+	FeatureIDsPresent         bool                    `form:"-" json:"-"`
+	MetadataTagIDsPresent     bool                    `form:"-" json:"-"`
+	MetadataTagIDs            []int                   `form:"-" json:"-"`
 	CoverURL                  string                  `form:"-" json:"-"`
 	NewPictureURLs            []string                `form:"-" json:"-"`
 }

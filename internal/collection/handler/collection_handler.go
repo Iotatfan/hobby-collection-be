@@ -15,15 +15,15 @@ import (
 	"github.com/iotatfan/hobby-collection-be/internal/common"
 )
 
-type CollectiontHandler struct {
+type CollectionHandler struct {
 	collectionService collectionService.CollectionService
 }
 
-func NewCollectionHandler(s collectionService.CollectionService) CollectiontHandler {
-	return CollectiontHandler{collectionService: s}
+func NewCollectionHandler(s collectionService.CollectionService) CollectionHandler {
+	return CollectionHandler{collectionService: s}
 }
 
-func (h *CollectiontHandler) GetCollectionByID(c *gin.Context) {
+func (h *CollectionHandler) GetCollectionByID(c *gin.Context) {
 	startedAt := time.Now()
 	defer func() {
 		log.Printf("[http] path=%s method=%s id=%s duration=%s status=%d", c.FullPath(), c.Request.Method, c.Param("id"), time.Since(startedAt), c.Writer.Status())
@@ -44,7 +44,7 @@ func (h *CollectiontHandler) GetCollectionByID(c *gin.Context) {
 	common.SuccessResponse(c, collection, http.StatusOK)
 }
 
-func (h *CollectiontHandler) GetCollectionList(c *gin.Context) {
+func (h *CollectionHandler) GetCollectionList(c *gin.Context) {
 	startedAt := time.Now()
 	defer func() {
 		log.Printf("[http] path=%s method=%s raw_query=%q duration=%s status=%d", c.FullPath(), c.Request.Method, c.Request.URL.RawQuery, time.Since(startedAt), c.Writer.Status())
@@ -74,7 +74,7 @@ func (h *CollectiontHandler) GetCollectionList(c *gin.Context) {
 	common.SuccessResponse(c, result, http.StatusOK)
 }
 
-func (h *CollectiontHandler) GetCollectionDrawer(c *gin.Context) {
+func (h *CollectionHandler) GetCollectionDrawer(c *gin.Context) {
 	result, err := h.collectionService.GetCollectionDrawer()
 	if err != nil {
 		common.ErrorResponse(c, err)
@@ -83,7 +83,7 @@ func (h *CollectiontHandler) GetCollectionDrawer(c *gin.Context) {
 	common.SuccessResponse(c, result, http.StatusOK)
 }
 
-func (h *CollectiontHandler) GetCollectionFilter(c *gin.Context) {
+func (h *CollectionHandler) GetCollectionFilter(c *gin.Context) {
 	startedAt := time.Now()
 	defer func() {
 		log.Printf("[http] path=%s method=%s duration=%s status=%d", c.FullPath(), c.Request.Method, time.Since(startedAt), c.Writer.Status())
@@ -97,7 +97,7 @@ func (h *CollectiontHandler) GetCollectionFilter(c *gin.Context) {
 	common.SuccessResponse(c, result, http.StatusOK)
 }
 
-func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
+func (h *CollectionHandler) UploadCollection(c *gin.Context) {
 	req := entity.UploadCollectionRequest{}
 	if err := c.ShouldBind(&req); err != nil {
 		common.ErrorResponse(c, err)
@@ -121,6 +121,24 @@ func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 		req.AddonManufacturerID = addonManufacturerIDs
 	}
 
+	modificationIDs, hasModificationIDs, err := parseFlexibleIntFormArray(c, "modifications")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	if hasModificationIDs {
+		req.ModificationIDs = modificationIDs
+	}
+
+	featureIDs, hasFeatureIDs, err := parseFlexibleIntFormArray(c, "features")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	if hasFeatureIDs {
+		req.FeatureIDs = featureIDs
+	}
+
 	if req.Cover == nil {
 		common.ErrorResponse(c, common.ValError{ErrorMsg: errors.New("the field Cover is required")})
 		return
@@ -139,7 +157,7 @@ func (h *CollectiontHandler) UploadCollection(c *gin.Context) {
 	common.SuccessResponse(c, result, http.StatusCreated)
 }
 
-func (h *CollectiontHandler) GetCollectionStatistics(c *gin.Context) {
+func (h *CollectionHandler) GetCollectionStatistics(c *gin.Context) {
 	result, err := h.collectionService.GetCollectionStatistics()
 	if err != nil {
 		common.ErrorResponse(c, err)
@@ -148,7 +166,7 @@ func (h *CollectiontHandler) GetCollectionStatistics(c *gin.Context) {
 	common.SuccessResponse(c, result, http.StatusOK)
 }
 
-func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
+func (h *CollectionHandler) UpdateCollection(c *gin.Context) {
 	inputID := c.Param("id")
 	id, err := strconv.Atoi(inputID)
 	if err != nil {
@@ -226,6 +244,30 @@ func (h *CollectiontHandler) UpdateCollection(c *gin.Context) {
 	if hasDeletedAddonIDs {
 		req.DeletedAddonIDsPresent = true
 		req.DeletedAddonIDs = deletedAddonIDs
+	}
+
+	modificationIDs, hasModificationIDs, err := parseFlexibleIntFormArray(c, "modifications")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	if hasModificationIDs {
+		req.ModificationIDsPresent = true
+		req.ModificationIDs = modificationIDs
+	}
+
+	featureIDs, hasFeatureIDs, err := parseFlexibleIntFormArray(c, "features")
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	if hasFeatureIDs {
+		req.FeatureIDsPresent = true
+		req.FeatureIDs = featureIDs
+	}
+
+	if req.ModificationIDsPresent || req.FeatureIDsPresent {
+		req.MetadataTagIDsPresent = true
 	}
 
 	result, err := h.collectionService.UpdateCollection(id, req)

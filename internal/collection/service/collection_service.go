@@ -121,6 +121,12 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 		}
 	}
 
+	metadataTagIDs, err := s.normalizeMetadataTagIDs(payload.ModificationIDs, payload.FeatureIDs)
+	if err != nil {
+		return collectionEntity.CollectionDetailResponse{}, err
+	}
+	payload.MetadataTagIDs = metadataTagIDs
+
 	log.Printf("[upload] saving to db cover_url=%s picture_urls=%d", payload.CoverURL, len(payload.PictureURLs))
 	collection, err := s.collectionRepo.UploadCollection(payload)
 	if err != nil {
@@ -323,6 +329,14 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 		}
 	}
 
+	if payload.MetadataTagIDsPresent {
+		metadataTagIDs, err := s.normalizeMetadataTagIDs(payload.ModificationIDs, payload.FeatureIDs)
+		if err != nil {
+			return collectionEntity.CollectionDetailResponse{}, err
+		}
+		payload.MetadataTagIDs = metadataTagIDs
+	}
+
 	if _, err := s.collectionRepo.UpdateCollection(id, payload, deletePictureIDs, deleteAddonIDs); err != nil {
 		log.Printf("[update] db update failed: %v", err)
 		return collectionEntity.CollectionDetailResponse{}, err
@@ -338,6 +352,79 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 	}
 
 	return mapCollectionResponse(collection, getPictures(collection), getAddons(collection)), nil
+}
+
+func (s *collectionService) normalizeMetadataTagIDs(modificationIDs []int, featureIDs []int) ([]int, error) {
+	normalizedModifications, err := normalizeMetadataTagIDsByField(modificationIDs, "modifications")
+	if err != nil {
+		return nil, err
+	}
+
+	normalizedFeatures, err := normalizeMetadataTagIDsByField(featureIDs, "features")
+	if err != nil {
+		return nil, err
+	}
+
+	combined := make([]int, 0, len(normalizedModifications)+len(normalizedFeatures))
+	combinedSeen := make(map[int]struct{}, len(normalizedModifications)+len(normalizedFeatures))
+	combined = append(combined, normalizedModifications...)
+	for _, id := range normalizedModifications {
+		combinedSeen[id] = struct{}{}
+	}
+	for _, id := range normalizedFeatures {
+		if _, exists := combinedSeen[id]; exists {
+			return nil, common.ValError{ErrorMsg: errors.New("modifications and features must not contain duplicate metadata tag ids")}
+		}
+		combinedSeen[id] = struct{}{}
+	}
+	combined = append(combined, normalizedFeatures...)
+
+	metadataTags, err := s.collectionRepo.GetMetadataTagsByIDs(combined)
+	if err != nil {
+		return nil, err
+	}
+
+	metadataTagByID := make(map[int]collectionEntity.MetadataTags, len(metadataTags))
+	for _, metadataTag := range metadataTags {
+		metadataTagByID[metadataTag.ID] = metadataTag
+	}
+
+	for _, id := range normalizedModifications {
+		metadataTag := metadataTagByID[id]
+		if metadataTag.Type != collectionEntity.Modification {
+			return nil, common.ValError{ErrorMsg: errors.New("one or more modifications are not modification metadata tags")}
+		}
+	}
+
+	for _, id := range normalizedFeatures {
+		metadataTag := metadataTagByID[id]
+		if metadataTag.Type != collectionEntity.Feature {
+			return nil, common.ValError{ErrorMsg: errors.New("one or more features are not feature metadata tags")}
+		}
+	}
+
+	return combined, nil
+}
+
+func normalizeMetadataTagIDsByField(ids []int, fieldName string) ([]int, error) {
+	if len(ids) == 0 {
+		return ids, nil
+	}
+
+	result := make([]int, 0, len(ids))
+	seen := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return nil, common.ValError{ErrorMsg: errors.New(fieldName + " contains an invalid metadata tag id")}
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+
+	return result, nil
 }
 
 func getPictures(collection collectionEntity.Collection) []collectionEntity.Picture {
@@ -627,6 +714,24 @@ func mapCollectionResponse(collection collectionEntity.Collection, pictures []co
 		})
 	}
 
+	modificationsResp := make([]collectionEntity.MetadataTagResponse, 0)
+	featuresResp := make([]collectionEntity.MetadataTagResponse, 0)
+	for _, metadataTag := range collection.MetadataTags {
+		resp := collectionEntity.MetadataTagResponse{
+			ID:   metadataTag.ID,
+			Slug: metadataTag.Slug,
+			Name: metadataTag.Name,
+			Type: metadataTag.Type,
+		}
+
+		switch metadataTag.Type {
+		case collectionEntity.Feature:
+			featuresResp = append(featuresResp, resp)
+		default:
+			modificationsResp = append(modificationsResp, resp)
+		}
+	}
+
 	result := collectionEntity.CollectionDetailResponse{
 		ID:    collection.ID,
 		Title: collection.Title,
@@ -644,12 +749,14 @@ func mapCollectionResponse(collection collectionEntity.Collection, pictures []co
 			ID:         collection.Series.ID,
 			SeriesName: collection.Series.SeriesName,
 		},
-		BuiltAt:     builtAt,
-		AcquiredAt:  acquiredAt,
-		Cover:       collection.Cover,
-		Description: collection.Description,
-		Pictures:    picturesResp,
-		Addons:      addonsResp,
+		BuiltAt:       builtAt,
+		AcquiredAt:    acquiredAt,
+		Cover:         collection.Cover,
+		Description:   collection.Description,
+		Pictures:      picturesResp,
+		Addons:        addonsResp,
+		Modifications: modificationsResp,
+		Features:      featuresResp,
 	}
 
 	return result

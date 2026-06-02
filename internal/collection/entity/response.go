@@ -5,19 +5,21 @@ import (
 )
 
 type CollectionDetailResponse struct {
-	ID           int                    `json:"id"`
-	Title        string                 `json:"title"`
-	Type         CollectionTypeResponse `json:"type"`
-	ReleaseType  ReleaseTypeResponse    `json:"release_type"`
-	Manufacturer ManufacturerResponse   `json:"manufacturer"`
-	Status       COLLECTION_STATUS      `json:"status"`
-	Series       SeriesResponse         `json:"series"`
-	BuiltAt      *time.Time             `json:"built_at"`
-	AcquiredAt   *time.Time             `json:"acquired_at"`
-	Cover        string                 `json:"cover"`
-	Pictures     []string               `json:"pictures"`
-	Addons       []AddonResponse        `json:"addons"`
-	Description  string                 `json:"description"`
+	ID            int                    `json:"id"`
+	Title         string                 `json:"title"`
+	Type          CollectionTypeResponse `json:"type"`
+	ReleaseType   ReleaseTypeResponse    `json:"release_type"`
+	Manufacturer  ManufacturerResponse   `json:"manufacturer"`
+	Status        COLLECTION_STATUS      `json:"status"`
+	Series        SeriesResponse         `json:"series"`
+	BuiltAt       *time.Time             `json:"built_at"`
+	AcquiredAt    *time.Time             `json:"acquired_at"`
+	Cover         string                 `json:"cover"`
+	Pictures      []string               `json:"pictures"`
+	Addons        []AddonResponse        `json:"addons"`
+	Modifications []MetadataTagResponse  `json:"modifications"`
+	Features      []MetadataTagResponse  `json:"features"`
+	Description   string                 `json:"description"`
 }
 
 type CollectionListResponse struct {
@@ -49,6 +51,8 @@ type CollectionDrawerResponse struct {
 	ReleaseTypes  []ReleaseTypeFilterResponse `json:"release_types"`
 	Manufacturers []ManufacturerResponse      `json:"manufacturers"`
 	Series        []SeriesResponse            `json:"series"`
+	Modifications []MetadataTagResponse       `json:"modifications"`
+	Features      []MetadataTagResponse       `json:"features"`
 }
 
 type GradeDrawerItem struct {
@@ -123,6 +127,13 @@ type AddonResponse struct {
 	AddonName    string               `json:"name"`
 	CollectionID int                  `json:"collection_id"`
 	Manufacturer ManufacturerResponse `json:"manufacturer"`
+}
+
+type MetadataTagResponse struct {
+	ID   int               `json:"id"`
+	Slug string            `json:"slug"`
+	Name string            `json:"name"`
+	Type METADATA_TAG_TYPE `json:"type"`
 }
 
 type StatisticResponse struct {

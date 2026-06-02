@@ -24,6 +24,7 @@ func main() {
 		&entity.Collection{},
 		&entity.Picture{},
 		&entity.Addon{},
+		&entity.MetadataTags{},
 	); err != nil {
 		log.Fatalf("auto migrate failed: %v", err)
 	}

@@ -26,6 +26,7 @@ type Collection struct {
 	Pictures       *[]Picture        `gorm:"foreignKey:CollectionID"`
 	Addons         *[]Addon          `gorm:"foreignKey:CollectionID"`
 	Description    string
+	MetadataTags   []MetadataTags `gorm:"many2many:collection_metadata_tags;"`
 	common.Model   `gorm:"embedded"`
 }
 
@@ -85,13 +86,28 @@ type Manufacturer struct {
 	common.Model     `gorm:"embedded"`
 }
 
+type MetadataTags struct {
+	ID           int               `gorm:"primaryKey;autoIncrement;column:id"`
+	Slug         string            `gorm:"column:slug;uniqueIndex"`
+	Name         string            `gorm:"column:name"`
+	Type         METADATA_TAG_TYPE `gorm:"column:type"`
+	common.Model `gorm:"embedded"`
+}
+
 // Non Table
 
 type COLLECTION_STATUS string
 
 const (
-	Whishlist = 0
-	Backlog   = 1
-	Owned     = 2
-	Built     = 3
+	Wishlist = 0
+	Backlog  = 1
+	Owned    = 2
+	Built    = 3
+)
+
+type METADATA_TAG_TYPE int
+
+const (
+	Modification = 0
+	Feature      = 1
 )
