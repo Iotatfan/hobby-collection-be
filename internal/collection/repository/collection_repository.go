@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 type CollectionRepository interface {
 	GetCollectionByID(id int) (collectionEntity.Collection, error)
 	GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
+	GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error)
 	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
@@ -439,6 +441,138 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	}
 
 	return response, nil
+}
+
+func (r *collectionRepository) GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error) {
+	startedAt := time.Now()
+	defer func() {
+		log.Printf("[repo.collection.shelves] duration=%s", time.Since(startedAt))
+	}()
+
+	const shelfLimit = 6
+
+	type shelfQuery struct {
+		name  string
+		id    int
+		where string
+		args  []any
+	}
+
+	queries := []shelfQuery{
+		{
+			name:  "Gunpla",
+			id:    collectionTypeGunplaID,
+			where: "ct.id = ? AND CAST(c.status AS int) <> ?",
+			args:  []any{collectionTypeGunplaID, collectionEntity.Backlog},
+		},
+		{
+			name:  "Figure",
+			id:    collectionTypeFiguresID,
+			where: "ct.id = ? AND CAST(c.status AS int) <> ?",
+			args:  []any{collectionTypeFiguresID, collectionEntity.Backlog},
+		},
+		{
+			name:  "Other Model Kit",
+			id:    0,
+			where: "ct.id NOT IN ? AND CAST(c.status AS int) <> ?",
+			args:  []any{[]int{collectionTypeFiguresID, collectionTypeGunplaID}, collectionEntity.Backlog},
+		},
+		{
+			name:  "Backlog",
+			id:    collectionEntity.Backlog,
+			where: "CAST(c.status AS int) = ?",
+			args:  []any{collectionEntity.Backlog},
+		},
+	}
+
+	shelves := make([]collectionEntity.CollectionShelfResponse, len(queries))
+	var wg sync.WaitGroup
+	var queryErrs []error
+	var queryErrMu sync.Mutex
+
+	for i, query := range queries {
+		wg.Add(1)
+		go func(index int, shelf shelfQuery) {
+			defer wg.Done()
+
+			rows := []collectionListItemRow{}
+			queryStartedAt := time.Now()
+			result := r.db.WithContext(ctx).
+				Table("collections c").
+				Select(`
+					c.id,
+					c.title,
+					c.status,
+					c.cover,
+					ct.id as type_id,
+					ct.name as type_name,
+					g.id as grade_id,
+					g.name as grade_name,
+					g.short_name as grade_short_name,
+					sc.id as scale_id,
+					sc.name as scale_name
+				`).
+				Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
+				Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
+				Joins("LEFT JOIN scales sc ON sc.id = c.scale_id AND sc.deleted_at IS NULL").
+				Where("c.deleted_at IS NULL").
+				Where(shelf.where, shelf.args...).
+				Order("COALESCE(c.built_at, c.acquired_at, c.created_at) DESC NULLS LAST").
+				Order("c.id DESC").
+				Limit(shelfLimit).
+				Scan(&rows)
+			log.Printf("[repo.collection.shelves.query] shelf=%q duration=%s rows=%d err=%v", shelf.name, time.Since(queryStartedAt), len(rows), result.Error)
+			if result.Error != nil {
+				queryErrMu.Lock()
+				queryErrs = append(queryErrs, wrapErr("load "+shelf.name+" shelf", result.Error))
+				queryErrMu.Unlock()
+				return
+			}
+
+			shelves[index] = collectionEntity.CollectionShelfResponse{
+				ID:    shelf.id,
+				Name:  shelf.name,
+				Items: mapShelfItems(rows),
+			}
+		}(i, query)
+	}
+
+	wg.Wait()
+	if len(queryErrs) > 0 {
+		return collectionEntity.CollectionShelvesResponse{}, common.DBError{ErrorMsg: errors.Join(queryErrs...)}
+	}
+
+	return collectionEntity.CollectionShelvesResponse{
+		GunplaShelf:        shelves[0],
+		FigureShelf:        shelves[1],
+		OtherModelKitShelf: shelves[2],
+		BacklogShelf:       shelves[3],
+	}, nil
+}
+
+func mapShelfItems(rows []collectionListItemRow) []collectionEntity.ShelfItemResponse {
+	items := make([]collectionEntity.ShelfItemResponse, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, collectionEntity.ShelfItemResponse{
+			ID:    row.ID,
+			Title: row.Title,
+			Type: collectionEntity.CollectionTypeResponse{
+				ID:                 row.TypeID,
+				CollectionTypeName: row.TypeName,
+				Scale:              nullString(row.ScaleName),
+				Grade: collectionEntity.GradeResponse{
+					ID:               row.GradeID,
+					Name:             row.GradeName,
+					ShortName:        row.GradeShortName,
+					CollectionTypeID: row.TypeID,
+				},
+			},
+			Status: row.Status,
+			Cover:  row.Cover,
+		})
+	}
+
+	return items
 }
 
 func getCollectionListSort(sort string) (string, string) {

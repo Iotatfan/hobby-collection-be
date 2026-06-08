@@ -22,6 +22,7 @@ import (
 type CollectionService interface {
 	GetCollectionByID(id int) (collectionEntity.CollectionDetailResponse, error)
 	GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
+	GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error)
 	GetCollectionStatistics() (collectionEntity.StatisticResponse, error)
@@ -62,6 +63,10 @@ func (s *collectionService) GetCollectionList(filters collectionEntity.Collectio
 		filters.Sort = defaultCollectionSort
 	}
 	return s.collectionRepo.GetCollectionList(filters)
+}
+
+func (s *collectionService) GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error) {
+	return s.collectionRepo.GetCollectionShelves(ctx)
 }
 
 func (s *collectionService) GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error) {
