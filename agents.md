@@ -30,7 +30,7 @@
 ## Entity Layer
 - Structs are defined in `internal/collection/entity/`
 - `collection.go` contains main collection entity
-- `request.go` contains request/response DTOs
+- `request.go` contains request DTOs
 - `response.go` contains API response structs
 - `filter.go` contains filter parameters
 

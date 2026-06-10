@@ -144,11 +144,12 @@ type StatisticResponse struct {
 }
 
 type ShelfItemResponse struct {
-	ID     int                    `json:"id"`
-	Title  string                 `json:"title"`
-	Type   CollectionTypeResponse `json:"type"`
-	Status COLLECTION_STATUS      `json:"status"`
-	Cover  string                 `json:"cover"`
+	ID          int                    `json:"id"`
+	Title       string                 `json:"title"`
+	Type        CollectionTypeResponse `json:"type"`
+	Status      COLLECTION_STATUS      `json:"status"`
+	Cover       string                 `json:"cover"`
+	DisplaySize DISPLAY_SIZE           `json:"display_size"`
 }
 
 type CollectionShelfResponse struct {

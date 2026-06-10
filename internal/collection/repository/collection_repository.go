@@ -285,6 +285,7 @@ type collectionListItemRow struct {
 	BuiltAt         *time.Time                         `gorm:"column:built_at"`
 	AcquiredAt      *time.Time                         `gorm:"column:acquired_at"`
 	Cover           string                             `gorm:"column:cover"`
+	DisplaySize     collectionEntity.DISPLAY_SIZE      `gorm:"column:display_size"`
 	TypeID          int                                `gorm:"column:type_id"`
 	TypeName        string                             `gorm:"column:type_name"`
 	GradeID         int                                `gorm:"column:grade_id"`
@@ -504,6 +505,7 @@ func (r *collectionRepository) GetCollectionShelves(ctx context.Context) (collec
 					c.title,
 					c.status,
 					c.cover,
+					c.display_size,
 					ct.id as type_id,
 					ct.name as type_name,
 					g.id as grade_id,
@@ -567,8 +569,9 @@ func mapShelfItems(rows []collectionListItemRow) []collectionEntity.ShelfItemRes
 					CollectionTypeID: row.TypeID,
 				},
 			},
-			Status: row.Status,
-			Cover:  row.Cover,
+			Status:      row.Status,
+			Cover:       row.Cover,
+			DisplaySize: row.DisplaySize,
 		})
 	}
 
