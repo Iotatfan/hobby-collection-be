@@ -26,6 +26,8 @@ func ParseError(errs ...error) (string, int) {
 		case *BcryptError:
 			log.Printf("Bcrypt Error: %s\n", typedError.ErrorMsg.Error())
 			return text.ErrServer, http.StatusInternalServerError
+		case DBError:
+			return parseDBError(typedError)
 		case *DBError:
 			return parseDBError(*typedError)
 		case NoRouteError:

@@ -21,9 +21,12 @@ type PostgresConfig struct {
 }
 
 type JWTConfig struct {
-	Secret  string `mapstructure:"secret" yaml:"secret"`
-	Access  int    `mapstructure:"access" yaml:"access"`
-	Refresh int    `mapstructure:"refresh" yaml:"refresh"`
+	Secret       string `mapstructure:"secret" yaml:"secret"`
+	Access       int    `mapstructure:"access" yaml:"access"`
+	Refresh      int    `mapstructure:"refresh" yaml:"refresh"`
+	Issuer       string `mapstructure:"issuer" yaml:"issuer"`
+	Audience     string `mapstructure:"audience" yaml:"audience"`
+	RequiredRole string `mapstructure:"required_role" yaml:"required_role"`
 }
 
 type RateLimitConfig struct {
@@ -38,6 +41,10 @@ type CloudinaryConfig struct {
 	Secret string `mapstructure:"secret" yaml:"secret"`
 }
 
+type AdminConfig struct {
+	Password string `mapstructure:"password" yaml:"password"`
+}
+
 type RedisConfig struct {
 	Host     string `mapstructure:"host" yaml:"host"`
 	Password string `mapstructure:"password" yaml:"password"`
@@ -50,6 +57,7 @@ type Config struct {
 	Postgres   PostgresConfig   `mapstructure:"postgres" yaml:"postgres"`
 	JWT        JWTConfig        `mapstructure:"jwt" yaml:"jwt"`
 	RateLimit  RateLimitConfig  `mapstructure:"rate_limit" yaml:"rate_limit"`
+	Admin      AdminConfig      `mapstructure:"admin" yaml:"admin"`
 	Cloudinary CloudinaryConfig `mapstructure:"cloudinary" yaml:"cloudinary"`
 	Redis      RedisConfig      `mapstructure:"redis" yaml:"redis"`
 }
