@@ -1,0 +1,7 @@
+.git
+.github
+tmp
+.env
+.env.*
+README.md
+*.log
