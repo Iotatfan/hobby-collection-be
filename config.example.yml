@@ -1,0 +1,28 @@
+server:
+  port: 8080
+
+postgres:
+  host: "localhost"
+  port: 5432
+  user: "postgres"
+  password: "change-me"
+  dbname: "change-me"
+
+jwt:
+  secret: "change-me"
+  issuer: "change-me"
+  audience: "change-me"
+  required_role: "admin"
+
+rate_limit:
+  read_requests_per_minute: 120
+  write_requests_per_minute: 20
+  burst: 10
+
+admin:
+  password: "change-me"
+
+cloudinary:
+  name: "change-me"
+  key: "change-me"
+  secret: "change-me"

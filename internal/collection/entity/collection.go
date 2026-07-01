@@ -27,6 +27,7 @@ type Collection struct {
 	Addons         *[]Addon          `gorm:"foreignKey:CollectionID"`
 	Description    string
 	MetadataTags   []MetadataTags `gorm:"many2many:collection_metadata_tags;"`
+	DisplaySize    DISPLAY_SIZE   `gorm:"column:display_size"`
 	common.Model   `gorm:"embedded"`
 }
 
@@ -110,4 +111,15 @@ type METADATA_TAG_TYPE int
 const (
 	Modification = 0
 	Feature      = 1
+)
+
+type DISPLAY_SIZE string
+
+const (
+	SmallWide  = "small_wide" // for 1/144 gunpla
+	SmallTall  = "small_tall"
+	MediumWide = "medium_wide" // for 1/100 and big 1/144 gunpla
+	MediumTall = "medium_tall"
+	LargeWide  = "large_wide" // for 1/60 and big 1/100 gunpla
+	LargeTall  = "large_tall"
 )

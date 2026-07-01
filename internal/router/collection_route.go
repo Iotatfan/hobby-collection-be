@@ -10,6 +10,7 @@ func SetCollectionRoutes(g *gin.Engine, cH handler.CollectionHandler) {
 	g.GET("/collection/drawer", cH.GetCollectionDrawer)
 	g.GET("/collection/filter", cH.GetCollectionFilter)
 	g.GET("/collection/statistics", cH.GetCollectionStatistics)
+	g.GET("/collection/shelves", cH.GetCollectionShelves)
 	g.GET("/collection/:id", cH.GetCollectionByID)
 	g.GET("/collection", cH.GetCollectionList)
 	g.POST("/create_collection", middleware.JWTAuth(), cH.UploadCollection)

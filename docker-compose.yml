@@ -1,0 +1,24 @@
+services:
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: hobby-postgres
+  #   environment:
+  #     POSTGRES_USER: ${POSTGRES_USER}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  #     POSTGRES_DB: ${POSTGRES_NAME}
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - .env
+    # depends_on:
+    #   - postgres
+
+# volumes:
+#   postgres_data:

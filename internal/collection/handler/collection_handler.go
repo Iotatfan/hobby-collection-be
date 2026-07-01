@@ -74,6 +74,20 @@ func (h *CollectionHandler) GetCollectionList(c *gin.Context) {
 	common.SuccessResponse(c, result, http.StatusOK)
 }
 
+func (h *CollectionHandler) GetCollectionShelves(c *gin.Context) {
+	startedAt := time.Now()
+	defer func() {
+		log.Printf("[http] path=%s method=%s duration=%s status=%d", c.FullPath(), c.Request.Method, time.Since(startedAt), c.Writer.Status())
+	}()
+
+	result, err := h.collectionService.GetCollectionShelves(c.Request.Context())
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	common.SuccessResponse(c, result, http.StatusOK)
+}
+
 func (h *CollectionHandler) GetCollectionDrawer(c *gin.Context) {
 	result, err := h.collectionService.GetCollectionDrawer()
 	if err != nil {

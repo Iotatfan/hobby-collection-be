@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,6 +23,7 @@ const (
 	defaultWriteRequestsPerMinute = 20
 	defaultRateLimitBurst         = 10
 	rateLimitWindow               = time.Minute
+	minJWTSecretLength            = 32
 )
 
 type rateLimitState struct {
@@ -140,30 +143,116 @@ func JWTAuth() gin.HandlerFunc {
 			return
 		}
 
-		secret := config.GetConfig().JWT.Secret
+		jwtCfg := config.GetConfig().JWT
+		secret := strings.TrimSpace(jwtCfg.Secret)
 		if secret == "" {
 			common.ErrorResponse(c, common.ServiceError{ErrorMsg: "jwt secret is not configured", Code: http.StatusInternalServerError})
 			c.Abort()
 			return
 		}
+		if len(secret) < minJWTSecretLength {
+			common.ErrorResponse(c, common.ServiceError{
+				ErrorMsg: fmt.Sprintf("jwt secret must be at least %d characters", minJWTSecretLength),
+				Code:     http.StatusInternalServerError,
+			})
+			c.Abort()
+			return
+		}
 
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		claims := jwt.MapClaims{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
+			switch token.Method.Alg() {
+			case jwt.SigningMethodHS256.Alg(), jwt.SigningMethodHS384.Alg(), jwt.SigningMethodHS512.Alg():
+				return []byte(secret), nil
+			default:
 				return nil, common.JWTError{ErrorMsg: text.InvToken}
 			}
-			return []byte(secret), nil
-		})
+		}, jwt.WithExpirationRequired(), jwt.WithIssuedAt())
 		if err != nil || token == nil || !token.Valid {
 			common.ErrorResponse(c, common.JWTError{ErrorMsg: text.InvToken})
 			c.Abort()
 			return
 		}
 
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if ok {
-			c.Set("jwt_claims", claims)
+		if err := validateJWTClaims(claims, jwtCfg); err != nil {
+			common.ErrorResponse(c, common.JWTError{ErrorMsg: text.InvToken})
+			c.Abort()
+			return
 		}
 
+		c.Set("jwt_claims", claims)
 		c.Next()
 	}
+}
+
+func validateJWTClaims(claims jwt.MapClaims, cfg config.JWTConfig) error {
+	subject, err := claims.GetSubject()
+	if err != nil || strings.TrimSpace(subject) == "" {
+		return errors.New("jwt subject claim is required")
+	}
+
+	if cfg.Issuer != "" {
+		issuer, err := claims.GetIssuer()
+		if err != nil || issuer != cfg.Issuer {
+			return errors.New("jwt issuer claim is invalid")
+		}
+	}
+
+	if cfg.Audience != "" {
+		audiences, err := claims.GetAudience()
+		if err != nil || !containsAudience(audiences, cfg.Audience) {
+			return errors.New("jwt audience claim is invalid")
+		}
+	}
+
+	if cfg.RequiredRole != "" && !hasRequiredRole(claims["role"], cfg.RequiredRole) && !hasRequiredRole(claims["roles"], cfg.RequiredRole) {
+		return errors.New("jwt role claim is invalid")
+	}
+
+	return nil
+}
+
+func hasRequiredRole(value any, requiredRole string) bool {
+	requiredRole = strings.TrimSpace(requiredRole)
+	if requiredRole == "" {
+		return true
+	}
+
+	switch typed := value.(type) {
+	case string:
+		for _, item := range strings.Split(typed, ",") {
+			if strings.EqualFold(strings.TrimSpace(item), requiredRole) {
+				return true
+			}
+		}
+	case []string:
+		for _, item := range typed {
+			if strings.EqualFold(strings.TrimSpace(item), requiredRole) {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range typed {
+			if role, ok := item.(string); ok && strings.EqualFold(strings.TrimSpace(role), requiredRole) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func containsAudience(audiences jwt.ClaimStrings, requiredAudience string) bool {
+	requiredAudience = strings.TrimSpace(requiredAudience)
+	if requiredAudience == "" {
+		return true
+	}
+
+	for _, audience := range audiences {
+		if audience == requiredAudience {
+			return true
+		}
+	}
+
+	return false
 }

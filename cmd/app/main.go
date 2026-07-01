@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/iotatfan/hobby-collection-be/internal/admin"
 	"github.com/iotatfan/hobby-collection-be/internal/collection"
 	"github.com/iotatfan/hobby-collection-be/internal/config"
 	"github.com/iotatfan/hobby-collection-be/internal/middleware"
@@ -36,6 +37,7 @@ func handleRequests() {
 	g.Use(middleware.RateLimit())
 
 	router.SetDefaultRoute(g)
+	admin.Register(g)
 	collection.Register(g, db, cld)
 
 	srv := &http.Server{

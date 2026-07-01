@@ -142,3 +142,25 @@ type StatisticResponse struct {
 	BacklogCount   int `json:"backlog_count"`
 	LimitedCount   int `json:"limited_count"` // limited/exclusive/p-bandai items count
 }
+
+type ShelfItemResponse struct {
+	ID          int                    `json:"id"`
+	Title       string                 `json:"title"`
+	Type        CollectionTypeResponse `json:"type"`
+	Status      COLLECTION_STATUS      `json:"status"`
+	Cover       string                 `json:"cover"`
+	DisplaySize DISPLAY_SIZE           `json:"display_size"`
+}
+
+type CollectionShelfResponse struct {
+	ID    int                 `json:"id"`
+	Name  string              `json:"name"`
+	Items []ShelfItemResponse `json:"items"`
+}
+
+type CollectionShelvesResponse struct {
+	GunplaShelf        CollectionShelfResponse `json:"gunpla_shelf"`
+	FigureShelf        CollectionShelfResponse `json:"figure_shelf"`
+	OtherModelKitShelf CollectionShelfResponse `json:"other_model_kit_shelf"`
+	BacklogShelf       CollectionShelfResponse `json:"backlog_shelf"`
+}
