@@ -10,6 +10,17 @@ Go backend for the Hobby Collection site.
 - PostgreSQL
 - Cloudinary
 
+## Architecture
+
+This project follows Clean Architecture principles with the following structure:
+
+| Layer / Directory | Description |
+| --- | --- |
+| `entity/` | Core structs, request/response models, and filter parameters |
+| `repository/` | Data access layer (database queries using GORM) |
+| `service/` | Business logic layer (maps requests to entities and calls repositories) |
+| `handler/` | HTTP delivery layer (Gin handlers, maps HTTP requests to service calls)
+
 ## Run locally
 
 Create or update `config.yml` in the repo root, then run:

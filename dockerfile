@@ -18,7 +18,6 @@ RUN apk add --no-cache ca-certificates
 
 COPY --from=builder /app/hobby-api .
 COPY --from=builder /app/migrate .
-COPY config.yml .
 
 EXPOSE 8080
 
