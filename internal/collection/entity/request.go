@@ -25,6 +25,7 @@ type UploadCollectionRequest struct {
 	MetadataTagIDs      []int                   `form:"-" json:"-"`
 	CoverURL            string                  `form:"-" json:"-"`
 	PictureURLs         []string                `form:"-" json:"-"`
+	DisplaySize         DISPLAY_SIZE            `form:"display_size"`
 }
 
 type UpdateCollectionRequest struct {
@@ -59,6 +60,7 @@ type UpdateCollectionRequest struct {
 	MetadataTagIDs            []int                   `form:"-" json:"-"`
 	CoverURL                  string                  `form:"-" json:"-"`
 	NewPictureURLs            []string                `form:"-" json:"-"`
+	DisplaySize               *DISPLAY_SIZE           `form:"display_size"`
 }
 
 type CollectionFilterRequest struct {

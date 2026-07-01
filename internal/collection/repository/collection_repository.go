@@ -69,6 +69,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		AcquiredAt       *time.Time                         `gorm:"column:acquired_at"`
 		Cover            string                             `gorm:"column:cover"`
 		Description      string                             `gorm:"column:description"`
+		DisplaySize      collectionEntity.DISPLAY_SIZE      `gorm:"column:display_size"`
 		TypeID           int                                `gorm:"column:type_id"`
 		TypeName         string                             `gorm:"column:type_name"`
 		GradeID          int                                `gorm:"column:grade_id"`
@@ -108,6 +109,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 			c.acquired_at,
 			c.cover,
 			c.description,
+			c.display_size,
 			ct.id as type_id,
 			ct.name as type_name,
 			g.id as grade_id,
@@ -244,6 +246,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 		AcquiredAt:     row.AcquiredAt,
 		Cover:          row.Cover,
 		Description:    row.Description,
+		DisplaySize:    row.DisplaySize,
 		CollectionType: collectionEntity.CollectionType{
 			ID:                 row.TypeID,
 			CollectionTypeName: row.TypeName,
@@ -938,6 +941,7 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 		SeriesID:       payload.SeriesID,
 		Cover:          payload.CoverURL,
 		Description:    payload.Description,
+		DisplaySize:    payload.DisplaySize,
 	}
 
 	if !payload.BuiltAt.IsZero() {
@@ -1072,6 +1076,9 @@ func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity
 		}
 		if payload.Description != nil {
 			updates["description"] = *payload.Description
+		}
+		if payload.DisplaySize != nil {
+			updates["display_size"] = *payload.DisplaySize
 		}
 		if payload.CoverURL != "" {
 			updates["cover"] = payload.CoverURL

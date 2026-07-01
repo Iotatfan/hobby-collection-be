@@ -758,6 +758,7 @@ func mapCollectionResponse(collection collectionEntity.Collection, pictures []co
 		AcquiredAt:    acquiredAt,
 		Cover:         collection.Cover,
 		Description:   collection.Description,
+		DisplaySize:   collection.DisplaySize,
 		Pictures:      picturesResp,
 		Addons:        addonsResp,
 		Modifications: modificationsResp,

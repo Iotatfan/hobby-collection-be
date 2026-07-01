@@ -20,6 +20,7 @@ type CollectionDetailResponse struct {
 	Modifications []MetadataTagResponse  `json:"modifications"`
 	Features      []MetadataTagResponse  `json:"features"`
 	Description   string                 `json:"description"`
+	DisplaySize   DISPLAY_SIZE           `json:"display_size"`
 }
 
 type CollectionListResponse struct {
