@@ -157,6 +157,7 @@ type CollectionShelfResponse struct {
 	ID    int                 `json:"id"`
 	Name  string              `json:"name"`
 	Items []ShelfItemResponse `json:"items"`
+	Count int                 `json:"count"`
 }
 
 type CollectionShelvesResponse struct {

@@ -300,6 +300,7 @@ type collectionListItemRow struct {
 	ReleaseTypeName sql.NullString                     `gorm:"column:release_type_name"`
 	SeriesID        sql.NullInt64                      `gorm:"column:series_id"`
 	SeriesName      sql.NullString                     `gorm:"column:series_name"`
+	TotalCount      int                                `gorm:"column:total_count"`
 }
 
 func (r *collectionRepository) GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
@@ -515,7 +516,8 @@ func (r *collectionRepository) GetCollectionShelves(ctx context.Context) (collec
 					g.name as grade_name,
 					g.short_name as grade_short_name,
 					sc.id as scale_id,
-					sc.name as scale_name
+					sc.name as scale_name,
+					COUNT(*) OVER() AS total_count
 				`).
 				Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
 				Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
@@ -534,10 +536,16 @@ func (r *collectionRepository) GetCollectionShelves(ctx context.Context) (collec
 				return
 			}
 
+			var total int
+			if len(rows) > 0 {
+				total = rows[0].TotalCount
+			}
+
 			shelves[index] = collectionEntity.CollectionShelfResponse{
 				ID:    shelf.id,
 				Name:  shelf.name,
 				Items: mapShelfItems(rows),
+				Count: total,
 			}
 		}(i, query)
 	}
