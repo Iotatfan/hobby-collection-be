@@ -928,8 +928,8 @@ func (r *collectionRepository) GetCollectionStatistics() (collectionEntity.Stati
 	var statistic collectionEntity.StatisticResponse
 
 	err := r.db.Model(&collectionEntity.Collection{}).
-		Select("COUNT(*) as total_count, COUNT(*) FILTER (WHERE CAST(status AS int) = ?) AS completed_count, COUNT(*) FILTER (WHERE CAST(status AS int) = ?) AS backlog_count, COUNT(*) FILTER (WHERE release_type IN (?, ?, ?)) AS limited_count",
-			collectionEntity.Built, collectionEntity.Backlog, 2, 3, 4).
+		Select("COUNT(*) as total_count, COUNT(*) FILTER (WHERE CAST(status AS int) IN (?, ?)) AS completed_count, COUNT(*) FILTER (WHERE CAST(status AS int) = ?) AS backlog_count, COUNT(*) FILTER (WHERE release_type IN (?, ?, ?)) AS limited_count",
+			collectionEntity.Built, collectionEntity.Owned, collectionEntity.Backlog, 2, 3, 4).
 		Where("deleted_at IS NULL").Scan(&statistic).Error
 	if err != nil {
 		return collectionEntity.StatisticResponse{}, common.DBError{ErrorMsg: err}
