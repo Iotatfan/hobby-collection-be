@@ -3,8 +3,9 @@ package main
 import (
 	"log"
 
-	"github.com/iotatfan/hobby-collection-be/internal/collection/entity"
+	collection "github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	"github.com/iotatfan/hobby-collection-be/internal/config"
+	shortlink "github.com/iotatfan/hobby-collection-be/internal/shortlink/entity"
 	"github.com/iotatfan/hobby-collection-be/pkg/database/gorm"
 )
 
@@ -15,16 +16,17 @@ func main() {
 
 	db := gorm.NewDB(&config.GetConfig().Postgres)
 	if err := db.AutoMigrate(
-		&entity.Scale{},
-		&entity.Grade{},
-		&entity.CollectionType{},
-		&entity.ReleaseType{},
-		&entity.Manufacturer{},
-		&entity.Series{},
-		&entity.Collection{},
-		&entity.Picture{},
-		&entity.Addon{},
-		&entity.MetadataTags{},
+		&collection.Scale{},
+		&collection.Grade{},
+		&collection.CollectionType{},
+		&collection.ReleaseType{},
+		&collection.Manufacturer{},
+		&collection.Series{},
+		&collection.Collection{},
+		&collection.Picture{},
+		&collection.Addon{},
+		&collection.MetadataTags{},
+		&shortlink.ShortLink{},
 	); err != nil {
 		log.Fatalf("auto migrate failed: %v", err)
 	}

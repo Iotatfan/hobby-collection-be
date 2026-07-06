@@ -16,6 +16,7 @@ import (
 	"github.com/iotatfan/hobby-collection-be/internal/config"
 	"github.com/iotatfan/hobby-collection-be/internal/middleware"
 	"github.com/iotatfan/hobby-collection-be/internal/router"
+	"github.com/iotatfan/hobby-collection-be/internal/shortlink"
 	"github.com/iotatfan/hobby-collection-be/pkg/database/gorm"
 	"github.com/iotatfan/hobby-collection-be/pkg/storage/cloud"
 )
@@ -39,6 +40,7 @@ func handleRequests() {
 	router.SetDefaultRoute(g)
 	admin.Register(g)
 	collection.Register(g, db, cld)
+	shortlink.Register(g, db)
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", config.GetConfig().Server.Port),
