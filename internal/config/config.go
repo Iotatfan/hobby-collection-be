@@ -60,6 +60,11 @@ type Config struct {
 	Admin      AdminConfig      `mapstructure:"admin" yaml:"admin"`
 	Cloudinary CloudinaryConfig `mapstructure:"cloudinary" yaml:"cloudinary"`
 	Redis      RedisConfig      `mapstructure:"redis" yaml:"redis"`
+	ShortLink  ShortLinkConfig  `mapstructure:"shortlink" yaml:"shortlink"`
+}
+
+type ShortLinkConfig struct {
+	FeURL string `mapstructure:"fe_url" yaml:"fe_url"`
 }
 
 var AppConfig *Config

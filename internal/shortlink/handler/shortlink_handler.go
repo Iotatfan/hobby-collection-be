@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/iotatfan/hobby-collection-be/internal/config"
 	"github.com/iotatfan/hobby-collection-be/internal/shortlink/entity"
 	"github.com/iotatfan/hobby-collection-be/internal/shortlink/service"
 )
@@ -41,7 +42,7 @@ func (h *ShortLinkHandler) GetShortLink(c *gin.Context) {
 
 	originalURL, err := h.service.GetShortLinkByCode(shortCode)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Short link not found"})
+		c.Redirect(http.StatusFound, config.GetConfig().ShortLink.FeURL+"/notfound")
 		return
 	}
 	c.Redirect(http.StatusFound, originalURL)
