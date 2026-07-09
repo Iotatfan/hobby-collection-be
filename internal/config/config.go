@@ -69,12 +69,6 @@ type ShortLinkConfig struct {
 
 var AppConfig *Config
 
-func checkConfig(cfg *Config) {
-	if cfg.Postgres.Host == "" {
-		panic("host name not configured")
-	}
-}
-
 func checkConfigFile() error {
 	if _, err := os.Stat("config.yml"); err == nil {
 		return nil // file already exists

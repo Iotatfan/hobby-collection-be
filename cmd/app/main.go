@@ -17,8 +17,9 @@ import (
 	"github.com/iotatfan/hobby-collection-be/internal/middleware"
 	"github.com/iotatfan/hobby-collection-be/internal/router"
 	"github.com/iotatfan/hobby-collection-be/internal/shortlink"
+	"github.com/iotatfan/hobby-collection-be/pkg/cache"
 	"github.com/iotatfan/hobby-collection-be/pkg/database/gorm"
-	"github.com/iotatfan/hobby-collection-be/pkg/storage/cloud"
+	"github.com/iotatfan/hobby-collection-be/pkg/storage/cloudinary"
 )
 
 const (
@@ -31,7 +32,10 @@ const (
 
 func handleRequests() {
 	db := gorm.NewDB(&config.GetConfig().Postgres)
-	cld := cloud.NewCld(&config.GetConfig().Cloudinary)
+	cld := cloudinary.NewCld(&config.GetConfig().Cloudinary)
+	redis := cache.NewRedisClient(&config.GetConfig().Redis)
+
+	defer redis.Close()
 
 	g := gin.Default()
 	g.Use(middleware.CORS())
@@ -39,8 +43,9 @@ func handleRequests() {
 
 	router.SetDefaultRoute(g)
 	admin.Register(g)
-	collection.Register(g, db, cld)
-	shortlink.Register(g, db)
+	collection.Register(g, db, cld, redis)
+	shortlinkHandler := shortlink.Register(db)
+	router.SetShortLinkRoutes(g, shortlinkHandler)
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", config.GetConfig().Server.Port),
@@ -53,7 +58,7 @@ func handleRequests() {
 
 	go func() {
 		// service connections
-		log.Printf("listening at port %d", config.AppConfig.Server.Port)
+		log.Printf("listening at port %d", config.GetConfig().Server.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("listen: %s\n", err)
 		}

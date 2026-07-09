@@ -17,6 +17,7 @@ import (
 	collectionEntity "github.com/iotatfan/hobby-collection-be/internal/collection/entity"
 	collectionRepository "github.com/iotatfan/hobby-collection-be/internal/collection/repository"
 	"github.com/iotatfan/hobby-collection-be/internal/common"
+	"github.com/iotatfan/hobby-collection-be/pkg/cache"
 )
 
 type CollectionService interface {
@@ -24,8 +25,8 @@ type CollectionService interface {
 	GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
 	GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
-	GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error)
-	GetCollectionStatistics() (collectionEntity.StatisticResponse, error)
+	GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error)
+	GetCollectionStatistics(ctx context.Context) (collectionEntity.StatisticResponse, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 }
@@ -33,6 +34,7 @@ type CollectionService interface {
 type collectionService struct {
 	collectionRepo collectionRepository.CollectionRepository
 	cld            *cloudinary.Cloudinary
+	redis          *cache.RedisCache
 }
 
 const (
@@ -42,10 +44,22 @@ const (
 	defaultCollectionSort  = "latest_built"
 )
 
-func NewCollectionService(collectionRepo collectionRepository.CollectionRepository, cld *cloudinary.Cloudinary) CollectionService {
+const (
+	cacheKeyCollectionFilter     = "collection:filter"
+	cacheKeyCollectionList       = "collection:list:%s"
+	cacheKeyCollectionStatistics = "collection:statistics"
+	cacheKeyCollectionShelves    = "collection:shelves"
+	cacheTTLCollectionFilter     = 12 * time.Hour
+	cacheTTLCollectionList       = 30 * time.Minute
+	cacheTTLCollectionStatistics = 30 * time.Minute
+	cacheTTLCollectionShelves    = 30 * time.Minute
+)
+
+func NewCollectionService(collectionRepo collectionRepository.CollectionRepository, cld *cloudinary.Cloudinary, redis *cache.RedisCache) CollectionService {
 	return &collectionService{
 		collectionRepo: collectionRepo,
 		cld:            cld,
+		redis:          redis,
 	}
 }
 
@@ -66,19 +80,58 @@ func (s *collectionService) GetCollectionList(filters collectionEntity.Collectio
 }
 
 func (s *collectionService) GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error) {
-	return s.collectionRepo.GetCollectionShelves(ctx)
+	var resp collectionEntity.CollectionShelvesResponse
+	err := s.redis.Get(ctx, cacheKeyCollectionShelves, &resp)
+	if err == nil {
+		return resp, nil
+	}
+
+	resp, err = s.collectionRepo.GetCollectionShelves(ctx)
+	if err != nil {
+		return collectionEntity.CollectionShelvesResponse{}, err
+	}
+
+	_ = s.redis.Set(ctx, cacheKeyCollectionShelves, resp, cacheTTLCollectionShelves)
+
+	return resp, nil
 }
 
 func (s *collectionService) GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error) {
 	return s.collectionRepo.GetCollectionDrawer()
 }
 
-func (s *collectionService) GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error) {
+func (s *collectionService) GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error) {
+	var resp collectionEntity.CollectionFilterResponse
+	err := s.redis.Get(ctx, cacheKeyCollectionFilter, &resp)
+	if err == nil {
+		return resp, nil
+	}
+
+	resp, err = s.collectionRepo.GetCollectionFilter()
+	if err != nil {
+		return collectionEntity.CollectionFilterResponse{}, err
+	}
+
+	_ = s.redis.Set(ctx, cacheKeyCollectionFilter, resp, cacheTTLCollectionFilter)
+
 	return s.collectionRepo.GetCollectionFilter()
 }
 
-func (s *collectionService) GetCollectionStatistics() (collectionEntity.StatisticResponse, error) {
-	return s.collectionRepo.GetCollectionStatistics()
+func (s *collectionService) GetCollectionStatistics(ctx context.Context) (collectionEntity.StatisticResponse, error) {
+	var resp collectionEntity.StatisticResponse
+
+	err := s.redis.Get(ctx, cacheKeyCollectionStatistics, &resp)
+	if err == nil {
+		return resp, nil
+	}
+
+	resp, err = s.collectionRepo.GetCollectionStatistics()
+	if err != nil {
+		return collectionEntity.StatisticResponse{}, err
+	}
+
+	_ = s.redis.Set(ctx, cacheKeyCollectionStatistics, resp, cacheTTLCollectionStatistics)
+	return resp, nil
 }
 
 func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {

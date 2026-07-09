@@ -5,8 +5,13 @@ postgres:
   host: "localhost"
   port: 5432
   user: "postgres"
-  password: "change-me"
-  dbname: "change-me"
+  password: ""
+  dbname: ""
+
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
 
 jwt:
   secret: "change-me"

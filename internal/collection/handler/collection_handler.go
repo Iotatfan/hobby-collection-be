@@ -103,7 +103,7 @@ func (h *CollectionHandler) GetCollectionFilter(c *gin.Context) {
 		log.Printf("[http] path=%s method=%s duration=%s status=%d", c.FullPath(), c.Request.Method, time.Since(startedAt), c.Writer.Status())
 	}()
 
-	result, err := h.collectionService.GetCollectionFilter()
+	result, err := h.collectionService.GetCollectionFilter(c.Request.Context())
 	if err != nil {
 		common.ErrorResponse(c, err)
 		return
@@ -172,7 +172,7 @@ func (h *CollectionHandler) UploadCollection(c *gin.Context) {
 }
 
 func (h *CollectionHandler) GetCollectionStatistics(c *gin.Context) {
-	result, err := h.collectionService.GetCollectionStatistics()
+	result, err := h.collectionService.GetCollectionStatistics(c.Request.Context())
 	if err != nil {
 		common.ErrorResponse(c, err)
 		return
