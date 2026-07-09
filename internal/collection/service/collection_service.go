@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -27,8 +28,8 @@ type CollectionService interface {
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error)
 	GetCollectionStatistics(ctx context.Context) (collectionEntity.StatisticResponse, error)
-	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
-	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
+	UploadCollection(ctx context.Context, payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
+	UpdateCollection(ctx context.Context, id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 }
 
 type collectionService struct {
@@ -134,7 +135,7 @@ func (s *collectionService) GetCollectionStatistics(ctx context.Context) (collec
 	return resp, nil
 }
 
-func (s *collectionService) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
+func (s *collectionService) UploadCollection(ctx context.Context, payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
 	uploadedOnThisRequest := make([]string, 0)
 	cleanupUploaded := true
 	defer func() {
@@ -199,10 +200,12 @@ func (s *collectionService) UploadCollection(payload collectionEntity.UploadColl
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 
+	s.invalidateCollectionCaches(ctx)
+
 	return mapCollectionResponse(collection, getPictures(collection), getAddons(collection)), nil
 }
 
-func (s *collectionService) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
+func (s *collectionService) UpdateCollection(ctx context.Context, id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error) {
 	uploadedOnThisRequest := make([]string, 0)
 	cleanupUploaded := true
 	defer func() {
@@ -408,6 +411,8 @@ func (s *collectionService) UpdateCollection(id int, payload collectionEntity.Up
 	if err != nil {
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
+
+	s.invalidateCollectionCaches(ctx)
 
 	return mapCollectionResponse(collection, getPictures(collection), getAddons(collection)), nil
 }
@@ -819,4 +824,16 @@ func mapCollectionResponse(collection collectionEntity.Collection, pictures []co
 	}
 
 	return result
+}
+
+// Need to implement one for Collection List in Future
+func (s *collectionService) invalidateCollectionCaches(ctx context.Context) {
+	keys := []string{
+		cacheKeyCollectionStatistics,
+		cacheKeyCollectionShelves,
+	}
+
+	if err := s.redis.Delete(ctx, keys...); err != nil {
+		fmt.Printf("[cache] failed to invalidate collection caches: %v", err)
+	}
 }

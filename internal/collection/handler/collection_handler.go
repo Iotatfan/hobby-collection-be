@@ -162,7 +162,7 @@ func (h *CollectionHandler) UploadCollection(c *gin.Context) {
 		return
 	}
 
-	result, err := h.collectionService.UploadCollection(req)
+	result, err := h.collectionService.UploadCollection(c.Request.Context(), req)
 	if err != nil {
 		common.ErrorResponse(c, err)
 		return
@@ -284,7 +284,7 @@ func (h *CollectionHandler) UpdateCollection(c *gin.Context) {
 		req.MetadataTagIDsPresent = true
 	}
 
-	result, err := h.collectionService.UpdateCollection(id, req)
+	result, err := h.collectionService.UpdateCollection(c.Request.Context(), id, req)
 	if err != nil {
 		common.ErrorResponse(c, err)
 		return

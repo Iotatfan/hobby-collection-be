@@ -44,6 +44,11 @@ func (r *RedisCache) Get(ctx context.Context, key string, dest any) error {
 	return json.Unmarshal([]byte(val), dest)
 }
 
+func (r *RedisCache) Delete(ctx context.Context, keys ...string) error {
+	fmt.Println("Delete Cache:", keys)
+	return r.client.Del(ctx, keys...).Err()
+}
+
 func (r *RedisCache) Close() error {
 	return r.client.Close()
 }
