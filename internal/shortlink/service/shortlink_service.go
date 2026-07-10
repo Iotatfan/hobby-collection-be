@@ -25,21 +25,34 @@ type ShortLinkService interface {
 }
 
 type shortLinkService struct {
-	repo  repository.ShortLinkRepository
-	redis *cache.RedisCache
+	repo           repository.ShortLinkRepository
+	redis          *cache.RedisCache
+	threatDetector ThreatDetector
 }
 
-func NewShortLinkService(repo repository.ShortLinkRepository, redis *cache.RedisCache) ShortLinkService {
+func NewShortLinkService(repo repository.ShortLinkRepository, redis *cache.RedisCache, threatDetector ThreatDetector) ShortLinkService {
 	return &shortLinkService{
-		repo:  repo,
-		redis: redis,
+		repo:           repo,
+		redis:          redis,
+		threatDetector: threatDetector,
 	}
 }
 
 func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL string, expiredAt *time.Time) (entity.CreateShortLinkResponse, error) {
 	existingLink, err := s.repo.GetShortLinkByUrl(originalURL)
 	if err == nil {
+		if existingLink.IsMalicious {
+			return entity.CreateShortLinkResponse{}, errors.New("url is malicious and cannot be shortened")
+		}
 		return entity.CreateShortLinkResponse{ShortCode: existingLink.ShortCode, ExpiredAt: existingLink.ExpiredAt}, nil
+	}
+
+	var isMalicious bool
+	if s.threatDetector != nil {
+		isMalicious, err = s.threatDetector.IsMaliciousURL(ctx, originalURL)
+		if err != nil {
+			return entity.CreateShortLinkResponse{}, fmt.Errorf("failed to check url threat: %w", err)
+		}
 	}
 
 	for i := 0; i < maxRetries; i++ {
@@ -48,12 +61,16 @@ func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL stri
 			return entity.CreateShortLinkResponse{}, err
 		}
 
-		err = s.repo.CreateShortLink(originalURL, shortCode, expiredAt)
+		err = s.repo.CreateShortLink(originalURL, shortCode, expiredAt, isMalicious)
 		if err != nil {
 			if isUniqueContraintViolationDetected(err) {
 				continue
 			}
 			return entity.CreateShortLinkResponse{}, fmt.Errorf("failed to create short link after %d retries", maxRetries)
+		}
+
+		if isMalicious {
+			return entity.CreateShortLinkResponse{}, errors.New("url is malicious and cannot be shortened")
 		}
 
 		err = s.redis.Set(ctx, cacheKeyPrefix+shortCode, originalURL, cacheTTL)
@@ -76,6 +93,14 @@ func (s *shortLinkService) GetShortLinkByCode(ctx context.Context, shortCode str
 	url, err := s.repo.GetShortLinkByCode(shortCode)
 	if err != nil {
 		return "", err
+	}
+
+	if s.threatDetector != nil {
+		isMalicious, err := s.threatDetector.IsMaliciousURL(ctx, url)
+		if err == nil && isMalicious {
+			_ = s.repo.MarkLinkAsMalicious(shortCode)
+			return "", errors.New("short link is malicious")
+		}
 	}
 
 	_ = s.redis.Set(ctx, cacheKeyPrefix+shortCode, url, cacheTTL)

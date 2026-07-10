@@ -12,5 +12,6 @@ type ShortLink struct {
 	ShortCode   string `gorm:"type:varchar(10);uniqueIndex" json:"short_code"`
 	// OwnerID      int    `gorm:"type:integer" json:"owner_id"` // Should be used for multi-user support in the future
 	ExpiredAt    *time.Time `gorm:"type:timestamp" json:"expired_at"`
+	IsMalicious  bool       `gorm:"type:boolean" json:"is_malicious"`
 	common.Model `gorm:"embedded"`
 }
