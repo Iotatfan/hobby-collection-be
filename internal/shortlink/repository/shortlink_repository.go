@@ -11,6 +11,7 @@ type ShortLinkRepository interface {
 	CreateShortLink(originalURL string, shortCode string, expiredAt *time.Time) error
 	GetShortLinkByCode(shortCode string) (string, error)
 	CheckShortCodeExists(shortCode string) (bool, error)
+	GetShortLinkByUrl(url string) (entity.ShortLink, error)
 }
 
 type shortLinkRepository struct {
@@ -53,4 +54,13 @@ func (r *shortLinkRepository) CheckShortCodeExists(shortCode string) (bool, erro
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *shortLinkRepository) GetShortLinkByUrl(url string) (entity.ShortLink, error) {
+	var shortLink entity.ShortLink
+	err := r.db.Where("original_url = ? AND expired_at > ?", url, time.Now()).First(&shortLink).Error
+	if err != nil {
+		return entity.ShortLink{}, err
+	}
+	return shortLink, nil
 }

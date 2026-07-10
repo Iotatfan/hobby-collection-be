@@ -28,7 +28,7 @@ func (h *ShortLinkHandler) CreateShortLink(c *gin.Context) {
 	}
 
 	expiredAt := time.Now().Add(240 * time.Hour) // Set expiration to 10 days from now
-	resp, err := h.service.CreateShortLink(req.OriginalURL, &expiredAt)
+	resp, err := h.service.CreateShortLink(c.Request.Context(), req.OriginalURL, &expiredAt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -40,7 +40,7 @@ func (h *ShortLinkHandler) CreateShortLink(c *gin.Context) {
 func (h *ShortLinkHandler) GetShortLink(c *gin.Context) {
 	shortCode := c.Param("short_code")
 
-	originalURL, err := h.service.GetShortLinkByCode(shortCode)
+	originalURL, err := h.service.GetShortLinkByCode(c.Request.Context(), shortCode)
 	if err != nil {
 		c.Redirect(http.StatusFound, config.GetConfig().ShortLink.FeURL+"/notfound")
 		return

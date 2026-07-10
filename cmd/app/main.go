@@ -44,7 +44,7 @@ func handleRequests() {
 	router.SetDefaultRoute(g)
 	admin.Register(g)
 	collection.Register(g, db, cld, redis)
-	shortlinkHandler := shortlink.Register(db)
+	shortlinkHandler := shortlink.Register(db, redis)
 	router.SetShortLinkRoutes(g, shortlinkHandler)
 
 	srv := &http.Server{
