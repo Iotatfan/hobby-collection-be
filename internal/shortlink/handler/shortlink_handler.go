@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/iotatfan/hobby-collection-be/internal/config"
@@ -27,8 +26,7 @@ func (h *ShortLinkHandler) CreateShortLink(c *gin.Context) {
 		return
 	}
 
-	expiredAt := time.Now().Add(240 * time.Hour) // Set expiration to 10 days from now
-	resp, err := h.service.CreateShortLink(c.Request.Context(), req.OriginalURL, &expiredAt)
+	resp, err := h.service.CreateShortLink(c.Request.Context(), req.OriginalURL, req.ExpiryDays)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

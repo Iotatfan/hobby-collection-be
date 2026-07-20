@@ -20,7 +20,7 @@ const cacheKeyPrefix = "shortlink:"
 const cacheTTL = 24 * time.Hour
 
 type ShortLinkService interface {
-	CreateShortLink(ctx context.Context, originalURL string, expiredAt *time.Time) (entity.CreateShortLinkResponse, error)
+	CreateShortLink(ctx context.Context, originalURL string, duration int) (entity.CreateShortLinkResponse, error)
 	GetShortLinkByCode(ctx context.Context, shortCode string) (string, error)
 }
 
@@ -38,8 +38,8 @@ func NewShortLinkService(repo repository.ShortLinkRepository, redis *cache.Redis
 	}
 }
 
-func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL string, expiredAt *time.Time) (entity.CreateShortLinkResponse, error) {
-	existingLink, err := s.repo.GetShortLinkByUrl(originalURL)
+func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL string, duration int) (entity.CreateShortLinkResponse, error) {
+	existingLink, err := s.repo.GetShortLinkByUrl(originalURL, duration)
 	if err == nil {
 		if existingLink.IsMalicious {
 			return entity.CreateShortLinkResponse{}, errors.New("url is malicious and cannot be shortened")
@@ -54,14 +54,16 @@ func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL stri
 			return entity.CreateShortLinkResponse{}, fmt.Errorf("failed to check url threat: %w", err)
 		}
 	}
+	fmt.Printf("Existing Duration %s New Duation %s", existingLink.Duration, duration)
 
+	expiredAt := time.Now().Add(time.Duration(duration) * 24 * time.Hour)
 	for i := 0; i < maxRetries; i++ {
 		shortCode, err := generateShortCode(7)
 		if err != nil {
 			return entity.CreateShortLinkResponse{}, err
 		}
 
-		err = s.repo.CreateShortLink(originalURL, shortCode, expiredAt, isMalicious)
+		err = s.repo.CreateShortLink(originalURL, shortCode, duration, &expiredAt, isMalicious)
 		if err != nil {
 			if isUniqueContraintViolationDetected(err) {
 				continue
@@ -77,7 +79,7 @@ func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL stri
 		if err != nil {
 			return entity.CreateShortLinkResponse{}, err
 		}
-		return entity.CreateShortLinkResponse{ShortCode: shortCode, ExpiredAt: expiredAt}, nil
+		return entity.CreateShortLinkResponse{ShortCode: shortCode, ExpiredAt: &expiredAt}, nil
 	}
 
 	return entity.CreateShortLinkResponse{}, fmt.Errorf("failed to create short link after %d retries", maxRetries)

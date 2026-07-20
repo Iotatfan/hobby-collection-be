@@ -8,10 +8,10 @@ import (
 )
 
 type ShortLinkRepository interface {
-	CreateShortLink(originalURL string, shortCode string, expiredAt *time.Time, isMalicious bool) error
+	CreateShortLink(originalURL string, shortCode string, duration int, expiredAt *time.Time, isMalicious bool) error
 	GetShortLinkByCode(shortCode string) (string, error)
 	CheckShortCodeExists(shortCode string) (bool, error)
-	GetShortLinkByUrl(url string) (entity.ShortLink, error)
+	GetShortLinkByUrl(url string, duration int) (entity.ShortLink, error)
 	MarkLinkAsMalicious(shortCode string) error
 }
 
@@ -25,11 +25,12 @@ func NewShortLinkRepository(db *gorm.DB) ShortLinkRepository {
 	}
 }
 
-func (r *shortLinkRepository) CreateShortLink(originalURL string, shortCode string, expiredAt *time.Time, isMalicious bool) error {
+func (r *shortLinkRepository) CreateShortLink(originalURL string, shortCode string, duration int, expiredAt *time.Time, isMalicious bool) error {
 	shortLink := entity.ShortLink{
 		OriginalURL: originalURL,
 		ShortCode:   shortCode,
 		ExpiredAt:   expiredAt,
+		Duration:    duration,
 		IsMalicious: isMalicious,
 	}
 	err := r.db.Create(&shortLink).Error
@@ -63,9 +64,9 @@ func (r *shortLinkRepository) CheckShortCodeExists(shortCode string) (bool, erro
 	return count > 0, nil
 }
 
-func (r *shortLinkRepository) GetShortLinkByUrl(url string) (entity.ShortLink, error) {
+func (r *shortLinkRepository) GetShortLinkByUrl(url string, duration int) (entity.ShortLink, error) {
 	var shortLink entity.ShortLink
-	err := r.db.Where("original_url = ? AND expired_at > ?", url, time.Now()).First(&shortLink).Error
+	err := r.db.Where("original_url = ? AND duration = ? AND expired_at > ?", url, duration, time.Now()).First(&shortLink).Error
 	if err != nil {
 		return entity.ShortLink{}, err
 	}
