@@ -66,7 +66,7 @@ func (h *CollectionHandler) GetCollectionList(c *gin.Context) {
 		filters.ReleaseTypeIDs = releaseTypeIDs
 	}
 
-	result, err := h.collectionService.GetCollectionList(filters)
+	result, err := h.collectionService.GetCollectionList(c.Request.Context(), filters)
 	if err != nil {
 		common.ErrorResponse(c, err)
 		return

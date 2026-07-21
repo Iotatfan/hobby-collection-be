@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -9,6 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,7 +27,7 @@ import (
 
 type CollectionService interface {
 	GetCollectionByID(id int) (collectionEntity.CollectionDetailResponse, error)
-	GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
+	GetCollectionList(ctx context.Context, filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
 	GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error)
@@ -47,13 +51,13 @@ const (
 
 const (
 	cacheKeyCollectionFilter     = "collection:filter"
-	cacheKeyCollectionList       = "collection:list:%s"
+	cacheKeyCollectionList       = "collection:query:%s"
 	cacheKeyCollectionStatistics = "collection:statistics"
 	cacheKeyCollectionShelves    = "collection:shelves"
 	cacheTTLCollectionFilter     = 12 * time.Hour
 	cacheTTLCollectionList       = 30 * time.Minute
-	cacheTTLCollectionStatistics = 30 * time.Minute
-	cacheTTLCollectionShelves    = 30 * time.Minute
+	cacheTTLCollectionStatistics = 1 * time.Hour
+	cacheTTLCollectionShelves    = 1 * time.Hour
 )
 
 func NewCollectionService(collectionRepo collectionRepository.CollectionRepository, cld *cloudinary.Cloudinary, redis *cache.RedisCache) CollectionService {
@@ -73,11 +77,24 @@ func (s *collectionService) GetCollectionByID(id int) (collectionEntity.Collecti
 	return mapCollectionResponse(collection, getPictures(collection), getAddons(collection)), nil
 }
 
-func (s *collectionService) GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
+func (s *collectionService) GetCollectionList(ctx context.Context, filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
+	var resp collectionEntity.CollectionListResponse
+
+	cacheKey := builCacheKey(filters)
+
+	err := s.redis.Get(ctx, cacheKey, &resp)
+	if err == nil {
+		return resp, nil
+	}
+
 	if strings.TrimSpace(filters.Sort) == "" {
 		filters.Sort = defaultCollectionSort
 	}
-	return s.collectionRepo.GetCollectionList(filters)
+
+	resp, err = s.collectionRepo.GetCollectionList(filters)
+	_ = s.redis.Set(ctx, cacheKey, resp, cacheTTLCollectionList)
+
+	return resp, nil
 }
 
 func (s *collectionService) GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error) {
@@ -836,4 +853,33 @@ func (s *collectionService) invalidateCollectionCaches(ctx context.Context) {
 	if err := s.redis.Delete(ctx, keys...); err != nil {
 		fmt.Printf("[cache] failed to invalidate collection caches: %v", err)
 	}
+}
+
+func builCacheKey(req collectionEntity.CollectionFilterRequest) string {
+	values := url.Values{}
+
+	if req.CollectionTypeID != 0 {
+		values.Set("collection_type_id", strconv.Itoa(req.CollectionTypeID))
+	}
+
+	if req.GradeID != 0 {
+		values.Set("grade_id", strconv.Itoa(req.GradeID))
+	}
+
+	ids := slices.Clone(req.ReleaseTypeIDs)
+	slices.Sort(ids)
+
+	for _, id := range ids {
+		values.Add("release_type_id", strconv.Itoa(id))
+	}
+
+	values.Set("sort", req.Sort)
+	values.Set("limit", strconv.Itoa(req.Limit))
+	values.Set("offset", strconv.Itoa(req.Offset))
+
+	encoded := values.Encode()
+
+	sum := sha256.Sum256([]byte(encoded))
+
+	return fmt.Sprintf(cacheKeyCollectionList, hex.EncodeToString(sum[:8]))
 }
