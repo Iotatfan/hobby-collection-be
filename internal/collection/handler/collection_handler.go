@@ -36,7 +36,7 @@ func (h *CollectionHandler) GetCollectionByID(c *gin.Context) {
 		return
 	}
 
-	collection, err := h.collectionService.GetCollectionByID(id)
+	collection, err := h.collectionService.GetCollectionByID(c.Request.Context(), id)
 	if err != nil {
 		common.ErrorResponse(c, err)
 		return

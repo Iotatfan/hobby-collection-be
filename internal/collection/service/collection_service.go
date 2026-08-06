@@ -26,7 +26,7 @@ import (
 )
 
 type CollectionService interface {
-	GetCollectionByID(id int) (collectionEntity.CollectionDetailResponse, error)
+	GetCollectionByID(ctx context.Context, id int) (collectionEntity.CollectionDetailResponse, error)
 	GetCollectionList(ctx context.Context, filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
 	GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error)
 	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
@@ -52,10 +52,13 @@ const (
 const (
 	cacheKeyCollectionFilter     = "collection:filter"
 	cacheKeyCollectionList       = "collection:query:%s"
+	cacheKeyCollectionListPrefix = "collection:query:*"
+	cacheKeyCollectionDetail     = "collection:detail:%d"
 	cacheKeyCollectionStatistics = "collection:statistics"
 	cacheKeyCollectionShelves    = "collection:shelves"
 	cacheTTLCollectionFilter     = 12 * time.Hour
 	cacheTTLCollectionList       = 30 * time.Minute
+	cacheTTLCollectionDetail     = 1 * time.Hour
 	cacheTTLCollectionStatistics = 1 * time.Hour
 	cacheTTLCollectionShelves    = 1 * time.Hour
 )
@@ -68,27 +71,39 @@ func NewCollectionService(collectionRepo collectionRepository.CollectionReposito
 	}
 }
 
-func (s *collectionService) GetCollectionByID(id int) (collectionEntity.CollectionDetailResponse, error) {
-	collection, err := s.collectionRepo.GetCollectionByID(id)
-	if err != nil {
-		return collectionEntity.CollectionDetailResponse{}, err
-	}
+func (s *collectionService) GetCollectionByID(ctx context.Context, id int) (collectionEntity.CollectionDetailResponse, error) {
+	var resp collectionEntity.CollectionDetailResponse
 
-	return mapCollectionResponse(collection, getPictures(collection), getAddons(collection)), nil
-}
-
-func (s *collectionService) GetCollectionList(ctx context.Context, filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
-	var resp collectionEntity.CollectionListResponse
-
-	cacheKey := builCacheKey(filters)
+	cacheKey := fmt.Sprintf(cacheKeyCollectionDetail, id)
 
 	err := s.redis.Get(ctx, cacheKey, &resp)
 	if err == nil {
 		return resp, nil
 	}
 
+	collection, err := s.collectionRepo.GetCollectionByID(id)
+	if err != nil {
+		return collectionEntity.CollectionDetailResponse{}, err
+	}
+
+	resp = mapCollectionResponse(collection, getPictures(collection), getAddons(collection))
+	_ = s.redis.Set(ctx, cacheKey, resp, cacheTTLCollectionDetail)
+
+	return resp, nil
+}
+
+func (s *collectionService) GetCollectionList(ctx context.Context, filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
+	var resp collectionEntity.CollectionListResponse
+
 	if strings.TrimSpace(filters.Sort) == "" {
 		filters.Sort = defaultCollectionSort
+	}
+
+	cacheKey := builCacheKey(filters)
+
+	err := s.redis.Get(ctx, cacheKey, &resp)
+	if err == nil {
+		return resp, nil
 	}
 
 	resp, err = s.collectionRepo.GetCollectionList(filters)
@@ -212,12 +227,12 @@ func (s *collectionService) UploadCollection(ctx context.Context, payload collec
 	log.Printf("[upload] db save success collection_id=%d", collection.ID)
 	cleanupUploaded = false
 
+	s.invalidateCollectionCaches(ctx, collection.ID)
+
 	collection, err = s.collectionRepo.GetCollectionByID(collection.ID)
 	if err != nil {
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
-
-	s.invalidateCollectionCaches(ctx)
 
 	return mapCollectionResponse(collection, getPictures(collection), getAddons(collection)), nil
 }
@@ -424,12 +439,12 @@ func (s *collectionService) UpdateCollection(ctx context.Context, id int, payloa
 	s.deleteCloudinaryByPublicID(deleteCoverPublicIDs)
 	s.deleteCloudinaryByPublicID(deletePicturePublicIDs)
 
+	s.invalidateCollectionCaches(ctx, id)
+
 	collection, err := s.collectionRepo.GetCollectionByID(id)
 	if err != nil {
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
-
-	s.invalidateCollectionCaches(ctx)
 
 	return mapCollectionResponse(collection, getPictures(collection), getAddons(collection)), nil
 }
@@ -844,14 +859,20 @@ func mapCollectionResponse(collection collectionEntity.Collection, pictures []co
 }
 
 // Need to implement one for Collection List in Future
-func (s *collectionService) invalidateCollectionCaches(ctx context.Context) {
+func (s *collectionService) invalidateCollectionCaches(ctx context.Context, id int) {
+	detailCacheKey := fmt.Sprintf(cacheKeyCollectionDetail, id)
+
 	keys := []string{
 		cacheKeyCollectionStatistics,
 		cacheKeyCollectionShelves,
+		detailCacheKey,
 	}
 
 	if err := s.redis.Delete(ctx, keys...); err != nil {
 		fmt.Printf("[cache] failed to invalidate collection caches: %v", err)
+	}
+	if err := s.redis.DeleteByPattern(ctx, cacheKeyCollectionListPrefix); err != nil {
+		fmt.Printf("[cache] failed to invalidate collection list caches: %v", err)
 	}
 }
 
@@ -866,11 +887,27 @@ func builCacheKey(req collectionEntity.CollectionFilterRequest) string {
 		values.Set("grade_id", strconv.Itoa(req.GradeID))
 	}
 
+	if req.ScaleID != 0 {
+		values.Set("scale_id", strconv.Itoa(req.ScaleID))
+	}
+
 	ids := slices.Clone(req.ReleaseTypeIDs)
 	slices.Sort(ids)
 
 	for _, id := range ids {
 		values.Add("release_type_id", strconv.Itoa(id))
+	}
+
+	if req.ManufacturerID != 0 {
+		values.Set("manufacturer_id", strconv.Itoa(req.ManufacturerID))
+	}
+
+	if req.SeriesID != 0 {
+		values.Set("series_id", strconv.Itoa(req.SeriesID))
+	}
+
+	if req.Status != "" {
+		values.Set("status", string(req.Status))
 	}
 
 	values.Set("sort", req.Sort)

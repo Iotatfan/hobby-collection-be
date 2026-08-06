@@ -49,6 +49,23 @@ func (r *RedisCache) Delete(ctx context.Context, keys ...string) error {
 	return r.client.Del(ctx, keys...).Err()
 }
 
+func (r *RedisCache) DeleteByPattern(ctx context.Context, pattern string) error {
+	var keys []string
+	iter := r.client.Scan(ctx, 0, pattern, 0).Iterator()
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	if err := iter.Err(); err != nil {
+		return err
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+
+	fmt.Println("Delete Cache By Pattern:", pattern)
+	return r.client.Del(ctx, keys...).Err()
+}
+
 func (r *RedisCache) Close() error {
 	return r.client.Close()
 }
