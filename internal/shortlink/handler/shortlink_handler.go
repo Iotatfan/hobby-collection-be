@@ -26,7 +26,7 @@ func (h *ShortLinkHandler) CreateShortLink(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.service.CreateShortLink(c.Request.Context(), req.OriginalURL, req.ExpiryDays)
+	resp, err := h.service.CreateShortLink(c.Request.Context(), req.OriginalURL, req.ExpiryDays, req.CustomURL)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

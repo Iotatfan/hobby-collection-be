@@ -15,4 +15,5 @@ func SetCollectionRoutes(g *gin.Engine, cH handler.CollectionHandler) {
 	g.GET("/collection", cH.GetCollectionList)
 	g.POST("/create_collection", middleware.JWTAuth(), cH.UploadCollection)
 	g.PATCH("/collection/:id", middleware.JWTAuth(), cH.UpdateCollection)
+	g.DELETE("/collection/:id", middleware.JWTAuth(), cH.DeleteCollection)
 }

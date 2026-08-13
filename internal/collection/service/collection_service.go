@@ -34,6 +34,7 @@ type CollectionService interface {
 	GetCollectionStatistics(ctx context.Context) (collectionEntity.StatisticResponse, error)
 	UploadCollection(ctx context.Context, payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 	UpdateCollection(ctx context.Context, id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
+	DeleteCollection(ctx context.Context, id int) error
 }
 
 type collectionService struct {
@@ -447,6 +448,10 @@ func (s *collectionService) UpdateCollection(ctx context.Context, id int, payloa
 	}
 
 	return mapCollectionResponse(collection, getPictures(collection), getAddons(collection)), nil
+}
+
+func (s *collectionService) DeleteCollection(ctx context.Context, id int) error {
+	return s.collectionRepo.DeleteCollection(id)
 }
 
 func (s *collectionService) normalizeMetadataTagIDs(modificationIDs []int, featureIDs []int) ([]int, error) {

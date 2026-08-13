@@ -29,6 +29,7 @@ type CollectionRepository interface {
 	GetCollectionStatistics() (collectionEntity.StatisticResponse, error)
 	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
 	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error)
+	DeleteCollection(id int) error
 }
 
 type collectionRepository struct {
@@ -1215,4 +1216,17 @@ func (r *collectionRepository) GetMetadataTagsByIDs(ids []int) ([]collectionEnti
 	}
 
 	return metadataTags, nil
+}
+
+func (r *collectionRepository) DeleteCollection(id int) error {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("collection_id = ?", id).Delete(&collectionEntity.Picture{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return common.DBError{ErrorMsg: err}
+	}
+	return nil
 }

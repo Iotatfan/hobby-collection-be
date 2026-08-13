@@ -293,6 +293,24 @@ func (h *CollectionHandler) UpdateCollection(c *gin.Context) {
 	common.SuccessResponse(c, result, http.StatusOK)
 }
 
+func (h *CollectionHandler) DeleteCollection(c *gin.Context) {
+	inputID := c.Param("id")
+	id, err := strconv.Atoi(inputID)
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+
+	err = h.collectionService.DeleteCollection(c.Request.Context(), id)
+
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+
+	common.SuccessResponse(c, gin.H{"message": "Collection deleted successfully"}, http.StatusOK)
+}
+
 func readFormFileIfExists(c *gin.Context, key string) *multipart.FileHeader {
 	file, err := c.FormFile(key)
 	if err != nil {

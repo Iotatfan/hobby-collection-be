@@ -20,7 +20,7 @@ const cacheKeyPrefix = "shortlink:"
 const cacheTTL = 24 * time.Hour
 
 type ShortLinkService interface {
-	CreateShortLink(ctx context.Context, originalURL string, duration int) (entity.CreateShortLinkResponse, error)
+	CreateShortLink(ctx context.Context, originalURL string, duration int, customURL string) (entity.CreateShortLinkResponse, error)
 	GetShortLinkByCode(ctx context.Context, shortCode string) (string, error)
 }
 
@@ -38,7 +38,7 @@ func NewShortLinkService(repo repository.ShortLinkRepository, redis *cache.Redis
 	}
 }
 
-func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL string, duration int) (entity.CreateShortLinkResponse, error) {
+func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL string, duration int, customURL string) (entity.CreateShortLinkResponse, error) {
 	existingLink, err := s.repo.GetShortLinkByUrl(originalURL, duration)
 	if err == nil {
 		if existingLink.IsMalicious {
@@ -57,6 +57,14 @@ func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL stri
 	fmt.Printf("Existing Duration %s New Duation %s", existingLink.Duration, duration)
 
 	expiredAt := time.Now().Add(time.Duration(duration) * 24 * time.Hour)
+	if customURL != "" {
+		err = s.repo.CreateShortLink(originalURL, customURL, duration, &expiredAt, isMalicious)
+		if err != nil {
+			return entity.CreateShortLinkResponse{}, err
+		}
+		return entity.CreateShortLinkResponse{ShortCode: customURL, ExpiredAt: &expiredAt}, nil
+	}
+
 	for i := 0; i < maxRetries; i++ {
 		shortCode, err := generateShortCode(7)
 		if err != nil {
