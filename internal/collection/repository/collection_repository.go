@@ -341,7 +341,8 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 			rt.id as release_type_id,
 			rt.name as release_type_name,
 			s.id as series_id,
-			s.name as series_name
+			s.name as series_name,
+			COUNT(*) OVER() AS total_count
 		`).
 		Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
 		Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
@@ -399,11 +400,13 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	if len(rows) == 0 {
 		return collectionEntity.CollectionListResponse{
 			Collections: []collectionEntity.CollectionListItemResponse{},
+			TotalCount:  0,
 		}, nil
 	}
 
 	response := collectionEntity.CollectionListResponse{
 		Collections: make([]collectionEntity.CollectionListItemResponse, 0, len(rows)),
+		TotalCount:  rows[0].TotalCount,
 	}
 	for _, row := range rows {
 		var builtAt *time.Time

@@ -25,6 +25,7 @@ type CollectionDetailResponse struct {
 
 type CollectionListResponse struct {
 	Collections []CollectionListItemResponse `json:"collections"`
+	TotalCount  int                          `json:"total_count"`
 }
 
 type CollectionListItemResponse struct {
