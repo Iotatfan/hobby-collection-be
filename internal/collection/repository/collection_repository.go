@@ -18,18 +18,19 @@ import (
 )
 
 type CollectionRepository interface {
-	GetCollectionByID(id int) (collectionEntity.Collection, error)
-	GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
+	GetCollectionByID(ctx context.Context, id int) (collectionEntity.Collection, error)
+	GetCollectionList(ctx context.Context, filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
 	GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error)
-	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
-	GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error)
-	GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error)
-	GetAddonsByCollectionID(id int) ([]collectionEntity.Addon, error)
-	GetMetadataTagsByIDs(ids []int) ([]collectionEntity.MetadataTags, error)
-	GetCollectionStatistics() (collectionEntity.StatisticResponse, error)
-	UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
-	UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error)
-	DeleteCollection(id int) error
+	GetCollectionDrawer(ctx context.Context) (collectionEntity.CollectionDrawerResponse, error)
+	GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error)
+	InvalidateCollectionFilterCache()
+	GetPicturesByCollectionID(ctx context.Context, id int) ([]collectionEntity.Picture, error)
+	GetAddonsByCollectionID(ctx context.Context, id int) ([]collectionEntity.Addon, error)
+	GetMetadataTagsByIDs(ctx context.Context, ids []int) ([]collectionEntity.MetadataTags, error)
+	GetCollectionStatistics(ctx context.Context) (collectionEntity.StatisticResponse, error)
+	UploadCollection(ctx context.Context, payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
+	UpdateCollection(ctx context.Context, id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error)
+	DeleteCollection(ctx context.Context, id int) error
 }
 
 type collectionRepository struct {
@@ -56,7 +57,7 @@ func NewCollectionRepository(db *gorm.DB) CollectionRepository {
 	}
 }
 
-func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Collection, error) {
+func (r *collectionRepository) GetCollectionByID(ctx context.Context, id int) (collectionEntity.Collection, error) {
 	startedAt := time.Now()
 	defer func() {
 		log.Printf("[repo.collection.detail] collection_id=%d duration=%s", id, time.Since(startedAt))
@@ -101,7 +102,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 
 	row := collectionDetailRow{}
 	mainQueryStartedAt := time.Now()
-	result := r.db.Table("collections c").
+	result := r.db.WithContext(ctx).Table("collections c").
 		Select(`
 			c.id,
 			c.title,
@@ -155,7 +156,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 	go func() {
 		defer wg.Done()
 		queryStartedAt := time.Now()
-		picturesErr = r.db.Model(&collectionEntity.Picture{}).
+		picturesErr = r.db.WithContext(ctx).Model(&collectionEntity.Picture{}).
 			Select("id", "collection_id", "url").
 			Where("collection_id = ? AND deleted_at IS NULL", id).
 			Order("created_at DESC").
@@ -167,7 +168,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 	go func() {
 		defer wg.Done()
 		queryStartedAt := time.Now()
-		addonsErr = r.db.Table("addons a").
+		addonsErr = r.db.WithContext(ctx).Table("addons a").
 			Select(`
 				a.id,
 				a.addon_name,
@@ -186,7 +187,7 @@ func (r *collectionRepository) GetCollectionByID(id int) (collectionEntity.Colle
 	go func() {
 		defer wg.Done()
 		queryStartedAt := time.Now()
-		metadataTagsErr = r.db.Table("metadata_tags mt").
+		metadataTagsErr = r.db.WithContext(ctx).Table("metadata_tags mt").
 			Select(`
 				mt.id,
 				mt.slug AS slug,
@@ -304,7 +305,7 @@ type collectionListItemRow struct {
 	TotalCount      int                                `gorm:"column:total_count"`
 }
 
-func (r *collectionRepository) GetCollectionList(filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
+func (r *collectionRepository) GetCollectionList(ctx context.Context, filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {
 	startedAt := time.Now()
 	defer func() {
 		log.Printf("[repo.collection.list] duration=%s filters={collection_type_id:%d grade_id:%d scale_id:%d release_type_ids:%v manufacturer_id:%d series_id:%d status:%q sort:%q limit:%d offset:%d}",
@@ -323,7 +324,7 @@ func (r *collectionRepository) GetCollectionList(filters collectionEntity.Collec
 	}()
 
 	rows := []collectionListItemRow{}
-	db := r.db.Table("collections c").
+	db := r.db.WithContext(ctx).Table("collections c").
 		Select(`
 			c.id,
 			c.title,
@@ -608,7 +609,7 @@ func getCollectionListSort(sort string) (string, string) {
 	}
 }
 
-func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error) {
+func (r *collectionRepository) GetCollectionDrawer(ctx context.Context) (collectionEntity.CollectionDrawerResponse, error) {
 	drawer := collectionEntity.CollectionDrawerResponse{}
 	type gradeRow struct {
 		ID                 int            `gorm:"column:id"`
@@ -617,7 +618,7 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 	}
 
 	grades := []gradeRow{}
-	if err := r.db.Table("grades g").
+	if err := r.db.WithContext(ctx).Table("grades g").
 		Select(`
 			g.id,
 			g.short_name,
@@ -655,35 +656,35 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 
 	go func() {
 		defer drawerWG.Done()
-		scalesErr = r.db.Model(&collectionEntity.Scale{}).
+		scalesErr = r.db.WithContext(ctx).Model(&collectionEntity.Scale{}).
 			Order("name ASC").
 			Find(&scales).Error
 	}()
 
 	go func() {
 		defer drawerWG.Done()
-		releaseTypesErr = r.db.Model(&collectionEntity.ReleaseType{}).
+		releaseTypesErr = r.db.WithContext(ctx).Model(&collectionEntity.ReleaseType{}).
 			Order("name ASC").
 			Find(&releaseTypes).Error
 	}()
 
 	go func() {
 		defer drawerWG.Done()
-		manufacturersErr = r.db.Model(&collectionEntity.Manufacturer{}).
+		manufacturersErr = r.db.WithContext(ctx).Model(&collectionEntity.Manufacturer{}).
 			Order("name ASC").
 			Find(&manufacturers).Error
 	}()
 
 	go func() {
 		defer drawerWG.Done()
-		seriesErr = r.db.Model(&collectionEntity.Series{}).
+		seriesErr = r.db.WithContext(ctx).Model(&collectionEntity.Series{}).
 			Order("name ASC").
 			Find(&series).Error
 	}()
 
 	go func() {
 		defer drawerWG.Done()
-		metadataTagsErr = r.db.Model(&collectionEntity.MetadataTags{}).
+		metadataTagsErr = r.db.WithContext(ctx).Model(&collectionEntity.MetadataTags{}).
 			Order("type ASC, name ASC").
 			Find(&metadataTags).Error
 	}()
@@ -754,7 +755,7 @@ func (r *collectionRepository) GetCollectionDrawer() (collectionEntity.Collectio
 	return drawer, nil
 }
 
-func (r *collectionRepository) GetCollectionFilter() (collectionEntity.CollectionFilterResponse, error) {
+func (r *collectionRepository) GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error) {
 	if cached, ok := r.getCachedCollectionFilter(); ok {
 		log.Printf("[repo.collection.filter] cache=hit duration=0s")
 		return cached, nil
@@ -770,7 +771,7 @@ func (r *collectionRepository) GetCollectionFilter() (collectionEntity.Collectio
 
 	rows := []collectionTypeRow{}
 	collectionTypesStartedAt := time.Now()
-	if err := r.db.Table("collection_types").
+	if err := r.db.WithContext(ctx).Table("collection_types").
 		Select("id", "name").
 		Where("deleted_at IS NULL").
 		Order("name ASC").
@@ -782,7 +783,7 @@ func (r *collectionRepository) GetCollectionFilter() (collectionEntity.Collectio
 
 	releaseTypes := []collectionEntity.ReleaseType{}
 	releaseTypesStartedAt := time.Now()
-	if err := r.db.Model(&collectionEntity.ReleaseType{}).
+	if err := r.db.WithContext(ctx).Model(&collectionEntity.ReleaseType{}).
 		Order("name ASC").
 		Find(&releaseTypes).Error; err != nil {
 		log.Printf("[repo.collection.filter.release_types_query] duration=%s rows=%d err=%v", time.Since(releaseTypesStartedAt), len(releaseTypes), err)
@@ -791,7 +792,7 @@ func (r *collectionRepository) GetCollectionFilter() (collectionEntity.Collectio
 	log.Printf("[repo.collection.filter.release_types_query] duration=%s rows=%d err=<nil>", time.Since(releaseTypesStartedAt), len(releaseTypes))
 
 	gunplaGrades := []collectionEntity.Grade{}
-	if err := r.db.Model(&collectionEntity.Grade{}).
+	if err := r.db.WithContext(ctx).Model(&collectionEntity.Grade{}).
 		Joins("JOIN collection_types ct ON ct.id = grades.collection_type_id AND ct.deleted_at IS NULL").
 		Where("grades.deleted_at IS NULL").
 		Where("ct.id = ?", collectionTypeGunplaID).
@@ -801,7 +802,7 @@ func (r *collectionRepository) GetCollectionFilter() (collectionEntity.Collectio
 	}
 
 	figuresScales := []collectionEntity.Scale{}
-	if err := r.db.Table("scales s").
+	if err := r.db.WithContext(ctx).Table("scales s").
 		Select("DISTINCT s.id, s.name").
 		Joins("JOIN collections c ON c.scale_id = s.id AND c.deleted_at IS NULL").
 		Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
@@ -872,6 +873,13 @@ func (r *collectionRepository) setCachedCollectionFilterDrawer(drawer collection
 	r.filterDrawerCachedAt = time.Now()
 }
 
+func (r *collectionRepository) InvalidateCollectionFilterCache() {
+	r.filterCacheMu.Lock()
+	defer r.filterCacheMu.Unlock()
+	r.filterDrawerCache = collectionEntity.CollectionFilterResponse{}
+	r.filterDrawerCachedAt = time.Time{}
+}
+
 func cloneCollectionFilterResponse(drawer collectionEntity.CollectionFilterResponse) collectionEntity.CollectionFilterResponse {
 	cloned := collectionEntity.CollectionFilterResponse{
 		CollectionTypes: make([]collectionEntity.CollectionTypeFilterResponse, len(drawer.CollectionTypes)),
@@ -904,9 +912,9 @@ func nullInt(value sql.NullInt64) int {
 	return int(value.Int64)
 }
 
-func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEntity.Picture, error) {
+func (r *collectionRepository) GetPicturesByCollectionID(ctx context.Context, id int) ([]collectionEntity.Picture, error) {
 	pictures := []collectionEntity.Picture{}
-	err := r.db.Model(&collectionEntity.Picture{}).
+	err := r.db.WithContext(ctx).Model(&collectionEntity.Picture{}).
 		Select("id", "collection_id", "url").
 		Where("collection_id = ? AND deleted_at IS NULL", id).
 		Find(&pictures).Error
@@ -916,9 +924,9 @@ func (r *collectionRepository) GetPicturesByCollectionID(id int) ([]collectionEn
 	return pictures, nil
 }
 
-func (r *collectionRepository) GetAddonsByCollectionID(id int) ([]collectionEntity.Addon, error) {
+func (r *collectionRepository) GetAddonsByCollectionID(ctx context.Context, id int) ([]collectionEntity.Addon, error) {
 	addons := []collectionEntity.Addon{}
-	err := r.db.Model(&collectionEntity.Addon{}).
+	err := r.db.WithContext(ctx).Model(&collectionEntity.Addon{}).
 		Select("id", "addon_name", "collection_id", "manufacturer", "created_at", "updated_at").
 		Where("collection_id = ? AND deleted_at IS NULL", id).
 		Find(&addons).Error
@@ -928,10 +936,10 @@ func (r *collectionRepository) GetAddonsByCollectionID(id int) ([]collectionEnti
 	return addons, nil
 }
 
-func (r *collectionRepository) GetCollectionStatistics() (collectionEntity.StatisticResponse, error) {
+func (r *collectionRepository) GetCollectionStatistics(ctx context.Context) (collectionEntity.StatisticResponse, error) {
 	var statistic collectionEntity.StatisticResponse
 
-	err := r.db.Model(&collectionEntity.Collection{}).
+	err := r.db.WithContext(ctx).Model(&collectionEntity.Collection{}).
 		Select("COUNT(*) as total_count, COUNT(*) FILTER (WHERE CAST(status AS int) IN (?, ?)) AS completed_count, COUNT(*) FILTER (WHERE CAST(status AS int) = ?) AS backlog_count, COUNT(*) FILTER (WHERE release_type IN (?, ?, ?)) AS limited_count",
 			collectionEntity.Built, collectionEntity.Owned, collectionEntity.Backlog, 2, 3, 4).
 		Where("deleted_at IS NULL").Scan(&statistic).Error
@@ -942,7 +950,7 @@ func (r *collectionRepository) GetCollectionStatistics() (collectionEntity.Stati
 	return statistic, nil
 }
 
-func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error) {
+func (r *collectionRepository) UploadCollection(ctx context.Context, payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error) {
 	collection := collectionEntity.Collection{
 		GradeID:        payload.GradeID,
 		ScaleID:        payload.ScaleID,
@@ -991,12 +999,12 @@ func (r *collectionRepository) UploadCollection(payload collectionEntity.UploadC
 		}
 	}
 
-	metadataTags, err := r.GetMetadataTagsByIDs(payload.MetadataTagIDs)
+	metadataTags, err := r.GetMetadataTagsByIDs(ctx, payload.MetadataTagIDs)
 	if err != nil {
 		return collectionEntity.Collection{}, err
 	}
 
-	err = r.db.Transaction(func(tx *gorm.DB) error {
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&collection).Error; err != nil {
 			return err
 		}
@@ -1041,19 +1049,19 @@ func wrapErr(scope string, err error) error {
 	return fmt.Errorf("%s: %w", scope, err)
 }
 
-func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error) {
+func (r *collectionRepository) UpdateCollection(ctx context.Context, id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error) {
 	collection := collectionEntity.Collection{}
 
 	metadataTags := make([]collectionEntity.MetadataTags, 0)
 	if payload.MetadataTagIDsPresent {
 		var err error
-		metadataTags, err = r.GetMetadataTagsByIDs(payload.MetadataTagIDs)
+		metadataTags, err = r.GetMetadataTagsByIDs(ctx, payload.MetadataTagIDs)
 		if err != nil {
 			return collectionEntity.Collection{}, err
 		}
 	}
 
-	err := r.db.Transaction(func(tx *gorm.DB) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.First(&collection, id).Error; err != nil {
 			return err
 		}
@@ -1204,13 +1212,13 @@ func (r *collectionRepository) UpdateCollection(id int, payload collectionEntity
 	return collection, nil
 }
 
-func (r *collectionRepository) GetMetadataTagsByIDs(ids []int) ([]collectionEntity.MetadataTags, error) {
+func (r *collectionRepository) GetMetadataTagsByIDs(ctx context.Context, ids []int) ([]collectionEntity.MetadataTags, error) {
 	if len(ids) == 0 {
 		return []collectionEntity.MetadataTags{}, nil
 	}
 
 	metadataTags := make([]collectionEntity.MetadataTags, 0, len(ids))
-	if err := r.db.Where("id IN ?", ids).Find(&metadataTags).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&metadataTags).Error; err != nil {
 		return nil, common.DBError{ErrorMsg: err}
 	}
 
@@ -1221,9 +1229,19 @@ func (r *collectionRepository) GetMetadataTagsByIDs(ids []int) ([]collectionEnti
 	return metadataTags, nil
 }
 
-func (r *collectionRepository) DeleteCollection(id int) error {
-	err := r.db.Transaction(func(tx *gorm.DB) error {
+func (r *collectionRepository) DeleteCollection(ctx context.Context, id int) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var collection collectionEntity.Collection
+		if err := tx.First(&collection, id).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("collection_id = ?", id).Delete(&collectionEntity.Picture{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("collection_id = ?", id).Delete(&collectionEntity.Addon{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&collection).Error; err != nil {
 			return err
 		}
 		return nil

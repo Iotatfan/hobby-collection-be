@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -106,9 +107,34 @@ func InitConfig() error {
 	if err != nil {
 		return err
 	}
+	if err := Validate(&cfg); err != nil {
+		return err
+	}
 
 	AppConfig = &cfg
 
+	return nil
+}
+
+func Validate(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("configuration is nil")
+	}
+	if strings.TrimSpace(cfg.JWT.Secret) == "" || len(strings.TrimSpace(cfg.JWT.Secret)) < 32 {
+		return fmt.Errorf("jwt.secret must be at least 32 characters")
+	}
+	if strings.TrimSpace(cfg.JWT.Issuer) == "" {
+		return fmt.Errorf("jwt.issuer is required")
+	}
+	if strings.TrimSpace(cfg.JWT.Audience) == "" {
+		return fmt.Errorf("jwt.audience is required")
+	}
+	if strings.TrimSpace(cfg.JWT.RequiredRole) == "" {
+		return fmt.Errorf("jwt.required_role is required")
+	}
+	if len(strings.TrimSpace(cfg.Admin.Password)) < 16 {
+		return fmt.Errorf("admin.password must be at least 16 characters")
+	}
 	return nil
 }
 

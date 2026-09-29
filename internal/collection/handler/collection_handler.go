@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"io"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -89,7 +90,7 @@ func (h *CollectionHandler) GetCollectionShelves(c *gin.Context) {
 }
 
 func (h *CollectionHandler) GetCollectionDrawer(c *gin.Context) {
-	result, err := h.collectionService.GetCollectionDrawer()
+	result, err := h.collectionService.GetCollectionDrawer(c.Request.Context())
 	if err != nil {
 		common.ErrorResponse(c, err)
 		return
@@ -161,6 +162,10 @@ func (h *CollectionHandler) UploadCollection(c *gin.Context) {
 		common.ErrorResponse(c, common.ValError{ErrorMsg: errors.New("the field Pictures is required")})
 		return
 	}
+	if err := validateImageFiles(req.Cover, req.Pictures...); err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
 
 	result, err := h.collectionService.UploadCollection(c.Request.Context(), req)
 	if err != nil {
@@ -196,6 +201,10 @@ func (h *CollectionHandler) UpdateCollection(c *gin.Context) {
 
 	req.Cover = readFormFileIfExists(c, "cover")
 	req.NewPictures = readMultipartFiles(c, "new_pictures", "new_pictures[]")
+	if err := validateImageFiles(req.Cover, req.NewPictures...); err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
 
 	newAddonNames, hasNewAddonNames := readFlexibleFormArray(c, "new_addon_names")
 	if hasNewAddonNames {
@@ -428,4 +437,42 @@ func trimNonEmptyStrings(values []string) []string {
 		result = append(result, trimmed)
 	}
 	return result
+}
+
+const (
+	maxImageSize    = 10 << 20
+	maxPictureCount = 20
+)
+
+func validateImageFiles(cover *multipart.FileHeader, pictures ...*multipart.FileHeader) error {
+	if len(pictures) > maxPictureCount {
+		return common.ValError{ErrorMsg: errors.New("too many picture files")}
+	}
+	files := make([]*multipart.FileHeader, 0, len(pictures)+1)
+	if cover != nil {
+		files = append(files, cover)
+	}
+	files = append(files, pictures...)
+	for _, header := range files {
+		if header == nil || header.Size <= 0 || header.Size > maxImageSize {
+			return common.ValError{ErrorMsg: errors.New("each image must be between 1 byte and 10 MB")}
+		}
+		file, err := header.Open()
+		if err != nil {
+			return common.ValError{ErrorMsg: errors.New("unable to read image")}
+		}
+		buffer := make([]byte, 512)
+		read, readErr := file.Read(buffer)
+		_ = file.Close()
+		if readErr != nil && readErr != io.EOF {
+			return common.ValError{ErrorMsg: errors.New("unable to inspect image")}
+		}
+		contentType := http.DetectContentType(buffer[:read])
+		switch contentType {
+		case "image/jpeg", "image/png", "image/gif", "image/webp":
+		default:
+			return common.ValError{ErrorMsg: errors.New("only jpeg, png, gif, and webp images are supported")}
+		}
+	}
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/iotatfan/hobby-collection-be/internal/common"
 	"github.com/iotatfan/hobby-collection-be/internal/config"
 	"github.com/iotatfan/hobby-collection-be/internal/shortlink/entity"
 	"github.com/iotatfan/hobby-collection-be/internal/shortlink/service"
@@ -22,13 +23,13 @@ func NewShortLinkHandler(service service.ShortLinkService) *ShortLinkHandler {
 func (h *ShortLinkHandler) CreateShortLink(c *gin.Context) {
 	var req entity.CreateShortLinkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, err)
 		return
 	}
 
 	resp, err := h.service.CreateShortLink(c.Request.Context(), req.OriginalURL, req.ExpiryDays, req.CustomURL)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, err)
 		return
 	}
 

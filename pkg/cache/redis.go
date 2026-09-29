@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/iotatfan/hobby-collection-be/internal/config"
@@ -30,7 +31,7 @@ func (r *RedisCache) Set(ctx context.Context, key string, value interface{}, exp
 		return err
 	}
 
-	fmt.Println("Set Cache:", key)
+	log.Printf("[cache] set key=%s", key)
 	return r.client.Set(ctx, key, b, expiration).Err()
 }
 
@@ -40,12 +41,12 @@ func (r *RedisCache) Get(ctx context.Context, key string, dest any) error {
 		return err
 	}
 
-	fmt.Println("Get Cache:", key, val)
+	log.Printf("[cache] get key=%s", key)
 	return json.Unmarshal([]byte(val), dest)
 }
 
 func (r *RedisCache) Delete(ctx context.Context, keys ...string) error {
-	fmt.Println("Delete Cache:", keys)
+	log.Printf("[cache] delete keys=%v", keys)
 	return r.client.Del(ctx, keys...).Err()
 }
 
@@ -62,7 +63,7 @@ func (r *RedisCache) DeleteByPattern(ctx context.Context, pattern string) error 
 		return nil
 	}
 
-	fmt.Println("Delete Cache By Pattern:", pattern)
+	log.Printf("[cache] delete pattern=%s", pattern)
 	return r.client.Del(ctx, keys...).Err()
 }
 

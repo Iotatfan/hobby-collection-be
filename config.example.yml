@@ -14,7 +14,7 @@ redis:
   password: ""
 
 jwt:
-  secret: "change-me"
+  secret: "replace-with-a-random-secret-at-least-32-characters"
   issuer: "change-me"
   audience: "change-me"
   required_role: "admin"
@@ -25,9 +25,12 @@ rate_limit:
   burst: 10
 
 admin:
-  password: "change-me"
+  password: "replace-with-a-password-at-least-16-characters"
 
 cloudinary:
   name: "change-me"
   key: "change-me"
   secret: "change-me"
+
+shortlink:
+  fe_url: "http://localhost:5173"

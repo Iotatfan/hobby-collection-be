@@ -15,6 +15,7 @@ import (
 const (
 	defaultAdminTokenTTL = 24 * time.Hour
 	minAdminPasswordLen  = 16
+	minJWTSecretLength   = 32
 )
 
 type AdminHandler struct{}
@@ -55,9 +56,9 @@ func (h *AdminHandler) IssueToken(c *gin.Context) {
 	}
 
 	secret := strings.TrimSpace(cfg.JWT.Secret)
-	if secret == "" {
+	if len(secret) < minJWTSecretLength {
 		common.ErrorResponse(c, common.ServiceError{
-			ErrorMsg: "jwt secret is not configured",
+			ErrorMsg: "jwt secret must be configured with at least 32 characters",
 			Code:     http.StatusInternalServerError,
 		})
 		return

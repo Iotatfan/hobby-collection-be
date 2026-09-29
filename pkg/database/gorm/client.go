@@ -28,6 +28,7 @@ func NewDB(cfg *config.PostgresConfig) *gorm.DB {
 		dsn = fmt.Sprintf("%s connect_timeout=%d", dsn, int(defaultConnectTimeout/time.Second))
 	}
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		TranslateError: true,
 		Logger: logger.New(
 			log.New(log.Writer(), "", log.LstdFlags),
 			logger.Config{

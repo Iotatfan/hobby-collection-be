@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -42,7 +43,7 @@ func newRateLimiter() *rateLimiter {
 	}
 }
 
-func (r *rateLimiter) allow(key string, limit int, now time.Time) bool {
+func (r *rateLimiter) allow(key string, limit int, now time.Time) (bool, int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -52,19 +53,29 @@ func (r *rateLimiter) allow(key string, limit int, now time.Time) bool {
 			windowStartedAt: now,
 			count:           1,
 		}
-		return true
+		return true, limit - 1
 	}
 
 	if state.count >= limit {
-		return false
+		return false, 0
 	}
 
 	state.count++
 	r.requests[key] = state
-	return true
+	return true, limit - state.count
 }
 
 var globalRateLimiter = newRateLimiter()
+
+func (r *rateLimiter) cleanup(now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for key, state := range r.requests {
+		if now.Sub(state.windowStartedAt) >= 2*rateLimitWindow {
+			delete(r.requests, key)
+		}
+	}
+}
 
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -112,8 +123,14 @@ func RateLimit() gin.HandlerFunc {
 		limit += burst
 		clientIP := c.ClientIP()
 		now := time.Now()
+		if atomic.AddUint64(&requestSeq, 1)%1000 == 0 {
+			globalRateLimiter.cleanup(now)
+		}
 		key := scope + ":" + clientIP
-		if !globalRateLimiter.allow(key, limit, now) {
+		c.Header("X-RateLimit-Limit", strconv.Itoa(limit))
+		allowed, remaining := globalRateLimiter.allow(key, limit, now)
+		c.Header("X-RateLimit-Remaining", strconv.Itoa(remaining))
+		if !allowed {
 			c.Header("Retry-After", strconv.Itoa(int(rateLimitWindow/time.Second)))
 			common.ErrorResponse(c, common.ServiceError{
 				ErrorMsg: "rate limit exceeded",
@@ -162,7 +179,7 @@ func JWTAuth() gin.HandlerFunc {
 		claims := jwt.MapClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
 			switch token.Method.Alg() {
-			case jwt.SigningMethodHS256.Alg(), jwt.SigningMethodHS384.Alg(), jwt.SigningMethodHS512.Alg():
+			case jwt.SigningMethodHS256.Alg():
 				return []byte(secret), nil
 			default:
 				return nil, common.JWTError{ErrorMsg: text.InvToken}

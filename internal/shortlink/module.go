@@ -16,7 +16,7 @@ import (
 
 func Register(db *gorm.DB, redisClient *cache.RedisCache) *handler.ShortLinkHandler {
 	sR := repository.NewShortLinkRepository(db)
-	
+
 	var threatDetector service.ThreatDetector
 	apiKey := os.Getenv("WEBRISK_API_KEY")
 	if apiKey != "" {
@@ -31,7 +31,7 @@ func Register(db *gorm.DB, redisClient *cache.RedisCache) *handler.ShortLinkHand
 		threatDetector = service.NewWebRiskDetector(nil)
 		log.Println("Web Risk threat detection disabled (WEBRISK_API_KEY not set)")
 	}
-	
+
 	sS := service.NewShortLinkService(sR, redisClient, threatDetector)
 	return handler.NewShortLinkHandler(sS)
 }

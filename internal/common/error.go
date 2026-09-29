@@ -8,12 +8,20 @@ func (db DBError) Error() string {
 	return db.ErrorMsg.Error()
 }
 
+func (db DBError) Unwrap() error {
+	return db.ErrorMsg
+}
+
 type ValError struct {
 	ErrorMsg error
 }
 
 func (ve ValError) Error() string {
 	return ve.ErrorMsg.Error()
+}
+
+func (ve ValError) Unwrap() error {
+	return ve.ErrorMsg
 }
 
 type NoRouteError struct {

@@ -29,7 +29,7 @@ type CollectionService interface {
 	GetCollectionByID(ctx context.Context, id int) (collectionEntity.CollectionDetailResponse, error)
 	GetCollectionList(ctx context.Context, filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
 	GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error)
-	GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error)
+	GetCollectionDrawer(ctx context.Context) (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error)
 	GetCollectionStatistics(ctx context.Context) (collectionEntity.StatisticResponse, error)
 	UploadCollection(ctx context.Context, payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
@@ -82,7 +82,7 @@ func (s *collectionService) GetCollectionByID(ctx context.Context, id int) (coll
 		return resp, nil
 	}
 
-	collection, err := s.collectionRepo.GetCollectionByID(id)
+	collection, err := s.collectionRepo.GetCollectionByID(ctx, id)
 	if err != nil {
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
@@ -107,7 +107,7 @@ func (s *collectionService) GetCollectionList(ctx context.Context, filters colle
 		return resp, nil
 	}
 
-	resp, err = s.collectionRepo.GetCollectionList(filters)
+	resp, err = s.collectionRepo.GetCollectionList(ctx, filters)
 	_ = s.redis.Set(ctx, cacheKey, resp, cacheTTLCollectionList)
 
 	return resp, nil
@@ -130,8 +130,8 @@ func (s *collectionService) GetCollectionShelves(ctx context.Context) (collectio
 	return resp, nil
 }
 
-func (s *collectionService) GetCollectionDrawer() (collectionEntity.CollectionDrawerResponse, error) {
-	return s.collectionRepo.GetCollectionDrawer()
+func (s *collectionService) GetCollectionDrawer(ctx context.Context) (collectionEntity.CollectionDrawerResponse, error) {
+	return s.collectionRepo.GetCollectionDrawer(ctx)
 }
 
 func (s *collectionService) GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error) {
@@ -141,14 +141,14 @@ func (s *collectionService) GetCollectionFilter(ctx context.Context) (collection
 		return resp, nil
 	}
 
-	resp, err = s.collectionRepo.GetCollectionFilter()
+	resp, err = s.collectionRepo.GetCollectionFilter(ctx)
 	if err != nil {
 		return collectionEntity.CollectionFilterResponse{}, err
 	}
 
 	_ = s.redis.Set(ctx, cacheKeyCollectionFilter, resp, cacheTTLCollectionFilter)
 
-	return s.collectionRepo.GetCollectionFilter()
+	return resp, nil
 }
 
 func (s *collectionService) GetCollectionStatistics(ctx context.Context) (collectionEntity.StatisticResponse, error) {
@@ -159,7 +159,7 @@ func (s *collectionService) GetCollectionStatistics(ctx context.Context) (collec
 		return resp, nil
 	}
 
-	resp, err = s.collectionRepo.GetCollectionStatistics()
+	resp, err = s.collectionRepo.GetCollectionStatistics(ctx)
 	if err != nil {
 		return collectionEntity.StatisticResponse{}, err
 	}
@@ -173,14 +173,14 @@ func (s *collectionService) UploadCollection(ctx context.Context, payload collec
 	cleanupUploaded := true
 	defer func() {
 		if cleanupUploaded && len(uploadedOnThisRequest) > 0 {
-			s.deleteCloudinaryByPublicID(uploadedOnThisRequest)
+			s.deleteCloudinaryByPublicID(ctx, uploadedOnThisRequest)
 		}
 	}()
 
 	log.Printf("[upload] start title=%q grade_id=%d scale_id=%d release_type_id=%d manufacturer_id=%d series_id=%d pictures=%d", payload.Title, payload.GradeID, payload.ScaleID, payload.ReleaseTypeID, payload.ManufacturerID, payload.SeriesID, len(payload.Pictures))
 
 	if payload.Cover != nil {
-		coverURL, err := s.uploadSingleImage(context.Background(), payload.Cover, coverUploadFolder)
+		coverURL, err := s.uploadSingleImage(ctx, payload.Cover, coverUploadFolder)
 		if err != nil {
 			log.Printf("[upload] cover upload failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
@@ -190,7 +190,7 @@ func (s *collectionService) UploadCollection(ctx context.Context, payload collec
 		log.Printf("[upload] cover uploaded url=%s", payload.CoverURL)
 	}
 
-	pictureURLs, err := s.uploadImageBatch(context.Background(), payload.Pictures, collectionUploadFolder, false)
+	pictureURLs, err := s.uploadImageBatch(ctx, payload.Pictures, collectionUploadFolder, false)
 	if err != nil {
 		log.Printf("[upload] picture upload failed: %v", err)
 		return collectionEntity.CollectionDetailResponse{}, err
@@ -213,14 +213,14 @@ func (s *collectionService) UploadCollection(ctx context.Context, payload collec
 		}
 	}
 
-	metadataTagIDs, err := s.normalizeMetadataTagIDs(payload.ModificationIDs, payload.FeatureIDs)
+	metadataTagIDs, err := s.normalizeMetadataTagIDs(ctx, payload.ModificationIDs, payload.FeatureIDs)
 	if err != nil {
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 	payload.MetadataTagIDs = metadataTagIDs
 
 	log.Printf("[upload] saving to db cover_url=%s picture_urls=%d", payload.CoverURL, len(payload.PictureURLs))
-	collection, err := s.collectionRepo.UploadCollection(payload)
+	collection, err := s.collectionRepo.UploadCollection(ctx, payload)
 	if err != nil {
 		log.Printf("[upload] db save failed: %v", err)
 		return collectionEntity.CollectionDetailResponse{}, err
@@ -230,7 +230,7 @@ func (s *collectionService) UploadCollection(ctx context.Context, payload collec
 
 	s.invalidateCollectionCaches(ctx, collection.ID)
 
-	collection, err = s.collectionRepo.GetCollectionByID(collection.ID)
+	collection, err = s.collectionRepo.GetCollectionByID(ctx, collection.ID)
 	if err != nil {
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
@@ -243,7 +243,7 @@ func (s *collectionService) UpdateCollection(ctx context.Context, id int, payloa
 	cleanupUploaded := true
 	defer func() {
 		if cleanupUploaded && len(uploadedOnThisRequest) > 0 {
-			s.deleteCloudinaryByPublicID(uploadedOnThisRequest)
+			s.deleteCloudinaryByPublicID(ctx, uploadedOnThisRequest)
 		}
 	}()
 
@@ -253,7 +253,7 @@ func (s *collectionService) UpdateCollection(ctx context.Context, id int, payloa
 	deletePicturePublicIDs := make([]string, 0)
 	deleteCoverPublicIDs := make([]string, 0)
 	if payload.DeletedPictureURLsPresent {
-		currentPictures, err := s.collectionRepo.GetPicturesByCollectionID(id)
+		currentPictures, err := s.collectionRepo.GetPicturesByCollectionID(ctx, id)
 		if err != nil {
 			log.Printf("[update] load current pictures failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
@@ -292,13 +292,13 @@ func (s *collectionService) UpdateCollection(ctx context.Context, id int, payloa
 	}
 
 	if payload.Cover != nil {
-		currentCollection, err := s.collectionRepo.GetCollectionByID(id)
+		currentCollection, err := s.collectionRepo.GetCollectionByID(ctx, id)
 		if err != nil {
 			log.Printf("[update] load current collection failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
 		}
 
-		coverURL, err := s.uploadSingleImage(context.Background(), payload.Cover, coverUploadFolder)
+		coverURL, err := s.uploadSingleImage(ctx, payload.Cover, coverUploadFolder)
 		if err != nil {
 			log.Printf("[update] cover upload failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
@@ -311,7 +311,7 @@ func (s *collectionService) UpdateCollection(ctx context.Context, id int, payloa
 		}
 	}
 
-	newPictureURLs, err := s.uploadImageBatch(context.Background(), payload.NewPictures, collectionUploadFolder, false)
+	newPictureURLs, err := s.uploadImageBatch(ctx, payload.NewPictures, collectionUploadFolder, false)
 	if err != nil {
 		log.Printf("[update] picture upload failed: %v", err)
 		return collectionEntity.CollectionDetailResponse{}, err
@@ -323,7 +323,7 @@ func (s *collectionService) UpdateCollection(ctx context.Context, id int, payloa
 	deleteAddonIDMap := make(map[int]struct{})
 	currentAddons := []collectionEntity.Addon{}
 	if payload.ExistingAddonIDsPresent || payload.DeletedAddonIDsPresent || len(payload.UpdateAddonIDs) > 0 {
-		addons, err := s.collectionRepo.GetAddonsByCollectionID(id)
+		addons, err := s.collectionRepo.GetAddonsByCollectionID(ctx, id)
 		if err != nil {
 			log.Printf("[update] load current addons failed: %v", err)
 			return collectionEntity.CollectionDetailResponse{}, err
@@ -424,25 +424,25 @@ func (s *collectionService) UpdateCollection(ctx context.Context, id int, payloa
 	}
 
 	if payload.MetadataTagIDsPresent {
-		metadataTagIDs, err := s.normalizeMetadataTagIDs(payload.ModificationIDs, payload.FeatureIDs)
+		metadataTagIDs, err := s.normalizeMetadataTagIDs(ctx, payload.ModificationIDs, payload.FeatureIDs)
 		if err != nil {
 			return collectionEntity.CollectionDetailResponse{}, err
 		}
 		payload.MetadataTagIDs = metadataTagIDs
 	}
 
-	if _, err := s.collectionRepo.UpdateCollection(id, payload, deletePictureIDs, deleteAddonIDs); err != nil {
+	if _, err := s.collectionRepo.UpdateCollection(ctx, id, payload, deletePictureIDs, deleteAddonIDs); err != nil {
 		log.Printf("[update] db update failed: %v", err)
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
 	cleanupUploaded = false
 
-	s.deleteCloudinaryByPublicID(deleteCoverPublicIDs)
-	s.deleteCloudinaryByPublicID(deletePicturePublicIDs)
+	s.deleteCloudinaryByPublicID(ctx, deleteCoverPublicIDs)
+	s.deleteCloudinaryByPublicID(ctx, deletePicturePublicIDs)
 
 	s.invalidateCollectionCaches(ctx, id)
 
-	collection, err := s.collectionRepo.GetCollectionByID(id)
+	collection, err := s.collectionRepo.GetCollectionByID(ctx, id)
 	if err != nil {
 		return collectionEntity.CollectionDetailResponse{}, err
 	}
@@ -451,10 +451,24 @@ func (s *collectionService) UpdateCollection(ctx context.Context, id int, payloa
 }
 
 func (s *collectionService) DeleteCollection(ctx context.Context, id int) error {
-	return s.collectionRepo.DeleteCollection(id)
+	collection, err := s.collectionRepo.GetCollectionByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	assets := []string{collection.Cover}
+	for _, picture := range getPictures(collection) {
+		assets = append(assets, picture.Url)
+	}
+	if err := s.collectionRepo.DeleteCollection(ctx, id); err != nil {
+		return err
+	}
+	s.deleteCloudinaryByPublicID(ctx, assets)
+	s.invalidateCollectionCaches(ctx, id)
+	s.collectionRepo.InvalidateCollectionFilterCache()
+	return nil
 }
 
-func (s *collectionService) normalizeMetadataTagIDs(modificationIDs []int, featureIDs []int) ([]int, error) {
+func (s *collectionService) normalizeMetadataTagIDs(ctx context.Context, modificationIDs []int, featureIDs []int) ([]int, error) {
 	normalizedModifications, err := normalizeMetadataTagIDsByField(modificationIDs, "modifications")
 	if err != nil {
 		return nil, err
@@ -479,7 +493,7 @@ func (s *collectionService) normalizeMetadataTagIDs(modificationIDs []int, featu
 	}
 	combined = append(combined, normalizedFeatures...)
 
-	metadataTags, err := s.collectionRepo.GetMetadataTagsByIDs(combined)
+	metadataTags, err := s.collectionRepo.GetMetadataTagsByIDs(ctx, combined)
 	if err != nil {
 		return nil, err
 	}
@@ -657,7 +671,7 @@ func (s *collectionService) uploadImageBatch(parentCtx context.Context, files []
 			uploadedBeforeFailure = append(uploadedBeforeFailure, value)
 		}
 		if len(uploadedBeforeFailure) > 0 {
-			s.deleteCloudinaryByPublicID(uploadedBeforeFailure)
+			s.deleteCloudinaryByPublicID(ctx, uploadedBeforeFailure)
 		}
 		return nil, firstErr
 	}
@@ -677,7 +691,7 @@ func (s *collectionService) uploadImageBatch(parentCtx context.Context, files []
 	return compact, nil
 }
 
-func (s *collectionService) deleteCloudinaryByPublicID(publicIDs []string) {
+func (s *collectionService) deleteCloudinaryByPublicID(ctx context.Context, publicIDs []string) {
 	if s.cld == nil || len(publicIDs) == 0 {
 		return
 	}
@@ -691,7 +705,7 @@ func (s *collectionService) deleteCloudinaryByPublicID(publicIDs []string) {
 			log.Printf("[cloudinary] skip delete: invalid stored value=%s", storedValue)
 			continue
 		}
-		if _, err := s.cld.Upload.Destroy(context.Background(), uploader.DestroyParams{PublicID: publicID}); err != nil {
+		if _, err := s.cld.Upload.Destroy(ctx, uploader.DestroyParams{PublicID: publicID}); err != nil {
 			log.Printf("[cloudinary] failed to delete public_id=%s: %v", publicID, err)
 		}
 	}
@@ -874,11 +888,12 @@ func (s *collectionService) invalidateCollectionCaches(ctx context.Context, id i
 	}
 
 	if err := s.redis.Delete(ctx, keys...); err != nil {
-		fmt.Printf("[cache] failed to invalidate collection caches: %v", err)
+		log.Printf("[cache] failed to invalidate collection caches: %v", err)
 	}
 	if err := s.redis.DeleteByPattern(ctx, cacheKeyCollectionListPrefix); err != nil {
-		fmt.Printf("[cache] failed to invalidate collection list caches: %v", err)
+		log.Printf("[cache] failed to invalidate collection list caches: %v", err)
 	}
+	s.collectionRepo.InvalidateCollectionFilterCache()
 }
 
 func builCacheKey(req collectionEntity.CollectionFilterRequest) string {
