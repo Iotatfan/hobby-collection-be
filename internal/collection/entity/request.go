@@ -5,6 +5,22 @@ import (
 	"time"
 )
 
+type CreateNamedCatalogRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+type CreateGradeRequest struct {
+	Name             string `json:"name" binding:"required"`
+	ShortName        string `json:"short_name" binding:"required"`
+	CollectionTypeID int    `json:"collection_type_id" binding:"required,min=1"`
+}
+
+type CreateMetadataTagRequest struct {
+	Slug string             `json:"slug" binding:"required"`
+	Name string             `json:"name" binding:"required"`
+	Type *METADATA_TAG_TYPE `json:"type" binding:"required,gte=0,lte=1"`
+}
+
 type UploadCollectionRequest struct {
 	Title               string                  `form:"title" binding:"required"`
 	GradeID             int                     `form:"grade_id" binding:"required"`

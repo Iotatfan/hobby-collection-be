@@ -35,6 +35,13 @@ type CollectionService interface {
 	UploadCollection(ctx context.Context, payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 	UpdateCollection(ctx context.Context, id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 	DeleteCollection(ctx context.Context, id int) error
+	CreateCollectionType(ctx context.Context, req collectionEntity.CreateNamedCatalogRequest) (collectionEntity.CollectionType, error)
+	CreateGrade(ctx context.Context, req collectionEntity.CreateGradeRequest) (collectionEntity.Grade, error)
+	CreateScale(ctx context.Context, req collectionEntity.CreateNamedCatalogRequest) (collectionEntity.Scale, error)
+	CreateReleaseType(ctx context.Context, req collectionEntity.CreateNamedCatalogRequest) (collectionEntity.ReleaseType, error)
+	CreateSeries(ctx context.Context, req collectionEntity.CreateNamedCatalogRequest) (collectionEntity.Series, error)
+	CreateManufacturer(ctx context.Context, req collectionEntity.CreateNamedCatalogRequest) (collectionEntity.Manufacturer, error)
+	CreateMetadataTag(ctx context.Context, req collectionEntity.CreateMetadataTagRequest) (collectionEntity.MetadataTags, error)
 }
 
 type collectionService struct {
@@ -91,6 +98,111 @@ func (s *collectionService) GetCollectionByID(ctx context.Context, id int) (coll
 	_ = s.redis.Set(ctx, cacheKey, resp, cacheTTLCollectionDetail)
 
 	return resp, nil
+}
+
+func (s *collectionService) CreateCollectionType(ctx context.Context, req collectionEntity.CreateNamedCatalogRequest) (collectionEntity.CollectionType, error) {
+	if err := requireCatalogName(req.Name); err != nil {
+		return collectionEntity.CollectionType{}, err
+	}
+	value, err := s.collectionRepo.CreateCollectionType(ctx, collectionEntity.CollectionType{CollectionTypeName: req.Name})
+	if err == nil {
+		s.invalidateCatalogCaches(ctx)
+	}
+	return value, err
+}
+
+func (s *collectionService) CreateGrade(ctx context.Context, req collectionEntity.CreateGradeRequest) (collectionEntity.Grade, error) {
+	if err := requireCatalogName(req.Name); err != nil {
+		return collectionEntity.Grade{}, err
+	}
+	if err := requireCatalogName(req.ShortName); err != nil {
+		return collectionEntity.Grade{}, common.ValError{ErrorMsg: errors.New("short_name is required")}
+	}
+	value, err := s.collectionRepo.CreateGrade(ctx, collectionEntity.Grade{Name: req.Name, ShortName: req.ShortName, CollectionTypeID: req.CollectionTypeID})
+	if err == nil {
+		s.invalidateCatalogCaches(ctx)
+	}
+	return value, err
+}
+
+func (s *collectionService) CreateScale(ctx context.Context, req collectionEntity.CreateNamedCatalogRequest) (collectionEntity.Scale, error) {
+	if err := requireCatalogName(req.Name); err != nil {
+		return collectionEntity.Scale{}, err
+	}
+	value, err := s.collectionRepo.CreateScale(ctx, collectionEntity.Scale{Name: req.Name})
+	if err == nil {
+		s.invalidateCatalogCaches(ctx)
+	}
+	return value, err
+}
+
+func (s *collectionService) CreateReleaseType(ctx context.Context, req collectionEntity.CreateNamedCatalogRequest) (collectionEntity.ReleaseType, error) {
+	if err := requireCatalogName(req.Name); err != nil {
+		return collectionEntity.ReleaseType{}, err
+	}
+	value, err := s.collectionRepo.CreateReleaseType(ctx, collectionEntity.ReleaseType{ReleaseTypeName: req.Name})
+	if err == nil {
+		s.invalidateCatalogCaches(ctx)
+	}
+	return value, err
+}
+
+func (s *collectionService) CreateSeries(ctx context.Context, req collectionEntity.CreateNamedCatalogRequest) (collectionEntity.Series, error) {
+	if err := requireCatalogName(req.Name); err != nil {
+		return collectionEntity.Series{}, err
+	}
+	value, err := s.collectionRepo.CreateSeries(ctx, collectionEntity.Series{SeriesName: req.Name})
+	if err == nil {
+		s.invalidateCatalogCaches(ctx)
+	}
+	return value, err
+}
+
+func (s *collectionService) CreateManufacturer(ctx context.Context, req collectionEntity.CreateNamedCatalogRequest) (collectionEntity.Manufacturer, error) {
+	if err := requireCatalogName(req.Name); err != nil {
+		return collectionEntity.Manufacturer{}, err
+	}
+	value, err := s.collectionRepo.CreateManufacturer(ctx, collectionEntity.Manufacturer{ManufacturerName: req.Name})
+	if err == nil {
+		s.invalidateCatalogCaches(ctx)
+	}
+	return value, err
+}
+
+func (s *collectionService) CreateMetadataTag(ctx context.Context, req collectionEntity.CreateMetadataTagRequest) (collectionEntity.MetadataTags, error) {
+	if err := requireCatalogName(req.Slug); err != nil {
+		return collectionEntity.MetadataTags{}, common.ValError{ErrorMsg: errors.New("slug is required")}
+	}
+	if err := requireCatalogName(req.Name); err != nil {
+		return collectionEntity.MetadataTags{}, err
+	}
+	if req.Type == nil {
+		return collectionEntity.MetadataTags{}, common.ValError{ErrorMsg: errors.New("type is required")}
+	}
+	if *req.Type != collectionEntity.Modification && *req.Type != collectionEntity.Feature {
+		return collectionEntity.MetadataTags{}, common.ValError{ErrorMsg: errors.New("type must be 0 or 1")}
+	}
+	value, err := s.collectionRepo.CreateMetadataTag(ctx, collectionEntity.MetadataTags{Slug: req.Slug, Name: req.Name, Type: *req.Type})
+	if err == nil {
+		s.invalidateCatalogCaches(ctx)
+	}
+	return value, err
+}
+
+func requireCatalogName(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return common.ValError{ErrorMsg: errors.New("name is required")}
+	}
+	return nil
+}
+
+func (s *collectionService) invalidateCatalogCaches(ctx context.Context) {
+	s.collectionRepo.InvalidateCollectionFilterCache()
+	if s.redis != nil {
+		if err := s.redis.Delete(ctx, cacheKeyCollectionFilter); err != nil {
+			log.Printf("[cache] failed to invalidate collection filter cache: %v", err)
+		}
+	}
 }
 
 func (s *collectionService) GetCollectionList(ctx context.Context, filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error) {

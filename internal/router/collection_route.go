@@ -7,6 +7,13 @@ import (
 )
 
 func SetCollectionRoutes(g *gin.Engine, cH handler.CollectionHandler) {
+	g.POST("/collection/types", middleware.JWTAuth(), cH.CreateCollectionType)
+	g.POST("/collection/grades", middleware.JWTAuth(), cH.CreateGrade)
+	g.POST("/collection/scales", middleware.JWTAuth(), cH.CreateScale)
+	g.POST("/collection/release-types", middleware.JWTAuth(), cH.CreateReleaseType)
+	g.POST("/collection/series", middleware.JWTAuth(), cH.CreateSeries)
+	g.POST("/collection/manufacturers", middleware.JWTAuth(), cH.CreateManufacturer)
+	g.POST("/collection/metadata-tags", middleware.JWTAuth(), cH.CreateMetadataTag)
 	g.GET("/collection/drawer", cH.GetCollectionDrawer)
 	g.GET("/collection/filter", cH.GetCollectionFilter)
 	g.GET("/collection/statistics", cH.GetCollectionStatistics)

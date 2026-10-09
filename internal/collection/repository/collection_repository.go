@@ -31,6 +31,13 @@ type CollectionRepository interface {
 	UploadCollection(ctx context.Context, payload collectionEntity.UploadCollectionRequest) (collectionEntity.Collection, error)
 	UpdateCollection(ctx context.Context, id int, payload collectionEntity.UpdateCollectionRequest, deletePictureIDs []int, deleteAddonIDs []int) (collectionEntity.Collection, error)
 	DeleteCollection(ctx context.Context, id int) error
+	CreateCollectionType(ctx context.Context, value collectionEntity.CollectionType) (collectionEntity.CollectionType, error)
+	CreateGrade(ctx context.Context, value collectionEntity.Grade) (collectionEntity.Grade, error)
+	CreateScale(ctx context.Context, value collectionEntity.Scale) (collectionEntity.Scale, error)
+	CreateReleaseType(ctx context.Context, value collectionEntity.ReleaseType) (collectionEntity.ReleaseType, error)
+	CreateSeries(ctx context.Context, value collectionEntity.Series) (collectionEntity.Series, error)
+	CreateManufacturer(ctx context.Context, value collectionEntity.Manufacturer) (collectionEntity.Manufacturer, error)
+	CreateMetadataTag(ctx context.Context, value collectionEntity.MetadataTags) (collectionEntity.MetadataTags, error)
 }
 
 type collectionRepository struct {
@@ -55,6 +62,100 @@ func NewCollectionRepository(db *gorm.DB) CollectionRepository {
 		db:                   db,
 		filterDrawerCacheTTL: 5 * time.Minute,
 	}
+}
+
+func (r *collectionRepository) CreateCollectionType(ctx context.Context, value collectionEntity.CollectionType) (collectionEntity.CollectionType, error) {
+	if err := r.ensureCatalogNameAvailable(ctx, &collectionEntity.CollectionType{}, value.CollectionTypeName); err != nil {
+		return value, err
+	}
+	err := r.db.WithContext(ctx).Create(&value).Error
+	return value, wrapCatalogCreateError(err)
+}
+
+func (r *collectionRepository) CreateGrade(ctx context.Context, value collectionEntity.Grade) (collectionEntity.Grade, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&collectionEntity.CollectionType{}).Where("id = ?", value.CollectionTypeID).Count(&count).Error; err != nil {
+		return value, common.DBError{ErrorMsg: err}
+	}
+	if count == 0 {
+		return value, common.ServiceError{ErrorMsg: "collection_type_id does not exist", Code: 400}
+	}
+	var existing collectionEntity.Grade
+	err := r.db.WithContext(ctx).Where("collection_type_id = ? AND name = ?", value.CollectionTypeID, value.Name).First(&existing).Error
+	if err == nil {
+		return value, common.ServiceError{ErrorMsg: "grade already exists for this collection type", Code: 409}
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return value, common.DBError{ErrorMsg: err}
+	}
+	err = r.db.WithContext(ctx).Create(&value).Error
+	return value, wrapCatalogCreateError(err)
+}
+
+func (r *collectionRepository) CreateScale(ctx context.Context, value collectionEntity.Scale) (collectionEntity.Scale, error) {
+	if err := r.ensureCatalogNameAvailable(ctx, &collectionEntity.Scale{}, value.Name); err != nil {
+		return value, err
+	}
+	err := r.db.WithContext(ctx).Create(&value).Error
+	return value, wrapCatalogCreateError(err)
+}
+
+func (r *collectionRepository) CreateReleaseType(ctx context.Context, value collectionEntity.ReleaseType) (collectionEntity.ReleaseType, error) {
+	if err := r.ensureCatalogNameAvailable(ctx, &collectionEntity.ReleaseType{}, value.ReleaseTypeName); err != nil {
+		return value, err
+	}
+	err := r.db.WithContext(ctx).Create(&value).Error
+	return value, wrapCatalogCreateError(err)
+}
+
+func (r *collectionRepository) CreateSeries(ctx context.Context, value collectionEntity.Series) (collectionEntity.Series, error) {
+	if err := r.ensureCatalogNameAvailable(ctx, &collectionEntity.Series{}, value.SeriesName); err != nil {
+		return value, err
+	}
+	err := r.db.WithContext(ctx).Create(&value).Error
+	return value, wrapCatalogCreateError(err)
+}
+
+func (r *collectionRepository) CreateManufacturer(ctx context.Context, value collectionEntity.Manufacturer) (collectionEntity.Manufacturer, error) {
+	if err := r.ensureCatalogNameAvailable(ctx, &collectionEntity.Manufacturer{}, value.ManufacturerName); err != nil {
+		return value, err
+	}
+	err := r.db.WithContext(ctx).Create(&value).Error
+	return value, wrapCatalogCreateError(err)
+}
+
+func (r *collectionRepository) CreateMetadataTag(ctx context.Context, value collectionEntity.MetadataTags) (collectionEntity.MetadataTags, error) {
+	var existing collectionEntity.MetadataTags
+	err := r.db.WithContext(ctx).Where("slug = ?", value.Slug).First(&existing).Error
+	if err == nil {
+		return value, common.ServiceError{ErrorMsg: "metadata tag slug already exists", Code: 409}
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return value, common.DBError{ErrorMsg: err}
+	}
+	err = r.db.WithContext(ctx).Create(&value).Error
+	return value, wrapCatalogCreateError(err)
+}
+
+func (r *collectionRepository) ensureCatalogNameAvailable(ctx context.Context, model any, name string) error {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(model).Where("name = ?", name).Count(&count).Error; err != nil {
+		return common.DBError{ErrorMsg: err}
+	}
+	if count > 0 {
+		return common.ServiceError{ErrorMsg: "catalog value already exists", Code: 409}
+	}
+	return nil
+}
+
+func wrapCatalogCreateError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return common.ServiceError{ErrorMsg: "catalog value already exists", Code: 409}
+	}
+	return common.DBError{ErrorMsg: err}
 }
 
 func (r *collectionRepository) GetCollectionByID(ctx context.Context, id int) (collectionEntity.Collection, error) {

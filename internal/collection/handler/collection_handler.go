@@ -24,6 +24,84 @@ func NewCollectionHandler(s collectionService.CollectionService) CollectionHandl
 	return CollectionHandler{collectionService: s}
 }
 
+func (h *CollectionHandler) CreateCollectionType(c *gin.Context) {
+	var req entity.CreateNamedCatalogRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	result, err := h.collectionService.CreateCollectionType(c.Request.Context(), req)
+	h.respondCatalogCreate(c, result, err)
+}
+
+func (h *CollectionHandler) CreateGrade(c *gin.Context) {
+	var req entity.CreateGradeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	result, err := h.collectionService.CreateGrade(c.Request.Context(), req)
+	h.respondCatalogCreate(c, result, err)
+}
+
+func (h *CollectionHandler) CreateScale(c *gin.Context) {
+	var req entity.CreateNamedCatalogRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	result, err := h.collectionService.CreateScale(c.Request.Context(), req)
+	h.respondCatalogCreate(c, result, err)
+}
+
+func (h *CollectionHandler) CreateReleaseType(c *gin.Context) {
+	var req entity.CreateNamedCatalogRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	result, err := h.collectionService.CreateReleaseType(c.Request.Context(), req)
+	h.respondCatalogCreate(c, result, err)
+}
+
+func (h *CollectionHandler) CreateSeries(c *gin.Context) {
+	var req entity.CreateNamedCatalogRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	result, err := h.collectionService.CreateSeries(c.Request.Context(), req)
+	h.respondCatalogCreate(c, result, err)
+}
+
+func (h *CollectionHandler) CreateManufacturer(c *gin.Context) {
+	var req entity.CreateNamedCatalogRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	result, err := h.collectionService.CreateManufacturer(c.Request.Context(), req)
+	h.respondCatalogCreate(c, result, err)
+}
+
+func (h *CollectionHandler) CreateMetadataTag(c *gin.Context) {
+	var req entity.CreateMetadataTagRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	result, err := h.collectionService.CreateMetadataTag(c.Request.Context(), req)
+	h.respondCatalogCreate(c, result, err)
+}
+
+func (h *CollectionHandler) respondCatalogCreate(c *gin.Context, result any, err error) {
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	common.SuccessResponse(c, result, http.StatusCreated)
+}
+
 func (h *CollectionHandler) GetCollectionByID(c *gin.Context) {
 	startedAt := time.Now()
 	defer func() {
