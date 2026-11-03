@@ -79,6 +79,8 @@ func parseFieldError(e validator.FieldError) string {
 		return fmt.Sprintf("%s must be equal or lower than %s characters", fieldName, e.Param())
 	case "url":
 		return fmt.Sprintf("%s must be a valid url", fieldName)
+	case "http_url":
+		return fmt.Sprintf("%s must be a valid HTTP or HTTPS URL with a host", fieldName)
 	default:
 		return fmt.Sprintf("%v", e)
 	}

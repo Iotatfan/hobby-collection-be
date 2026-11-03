@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +26,10 @@ func NewShortLinkHandler(service service.ShortLinkService) *ShortLinkHandler {
 func (h *ShortLinkHandler) CreateShortLink(c *gin.Context) {
 	var req entity.CreateShortLinkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		var syntaxError *json.SyntaxError
+		if errors.As(err, &syntaxError) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			err = common.ValError{ErrorMsg: errors.New("request body must contain valid JSON")}
+		}
 		common.ErrorResponse(c, err)
 		return
 	}

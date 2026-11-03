@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/iotatfan/hobby-collection-be/internal/common"
 	"github.com/iotatfan/hobby-collection-be/internal/shortlink/entity"
 	"github.com/iotatfan/hobby-collection-be/internal/shortlink/repository"
-	"github.com/iotatfan/hobby-collection-be/pkg/cache"
 	"gorm.io/gorm"
 )
 
@@ -26,6 +27,12 @@ type cachedShortLink struct {
 	ExpiredAt   *time.Time `json:"expired_at"`
 }
 
+type shortLinkCache interface {
+	Get(context.Context, string, any) error
+	Set(context.Context, string, any, time.Duration) error
+	Delete(context.Context, ...string) error
+}
+
 type ShortLinkService interface {
 	CreateShortLink(ctx context.Context, originalURL string, duration int, customURL string) (entity.CreateShortLinkResponse, error)
 	GetShortLinkByCode(ctx context.Context, shortCode string) (string, error)
@@ -33,11 +40,11 @@ type ShortLinkService interface {
 
 type shortLinkService struct {
 	repo           repository.ShortLinkRepository
-	redis          *cache.RedisCache
+	redis          shortLinkCache
 	threatDetector ThreatDetector
 }
 
-func NewShortLinkService(repo repository.ShortLinkRepository, redis *cache.RedisCache, threatDetector ThreatDetector) ShortLinkService {
+func NewShortLinkService(repo repository.ShortLinkRepository, redis shortLinkCache, threatDetector ThreatDetector) ShortLinkService {
 	return &shortLinkService{
 		repo:           repo,
 		redis:          redis,
@@ -46,6 +53,9 @@ func NewShortLinkService(repo repository.ShortLinkRepository, redis *cache.Redis
 }
 
 func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL string, duration int, customURL string) (entity.CreateShortLinkResponse, error) {
+	if err := validateDestination(originalURL); err != nil {
+		return entity.CreateShortLinkResponse{}, err
+	}
 	if duration < 1 || duration > maxExpiryDays {
 		return entity.CreateShortLinkResponse{}, common.ValError{ErrorMsg: errors.New("expiry_days must be between 1 and 365")}
 	}
@@ -53,18 +63,21 @@ func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL stri
 		return entity.CreateShortLinkResponse{}, common.ValError{ErrorMsg: errors.New("custom_url must be 10 characters or fewer")}
 	}
 
-	existingLink, err := s.repo.GetShortLinkByUrl(ctx, originalURL, duration)
-	if err == nil {
-		if existingLink.IsMalicious {
-			return entity.CreateShortLinkResponse{}, errors.New("url is malicious and cannot be shortened")
+	if customURL == "" {
+		existingLink, err := s.repo.GetShortLinkByUrl(ctx, originalURL, duration)
+		if err == nil {
+			if existingLink.IsMalicious {
+				return entity.CreateShortLinkResponse{}, common.ValError{ErrorMsg: errors.New("url is malicious and cannot be shortened")}
+			}
+			return entity.CreateShortLinkResponse{ShortCode: existingLink.ShortCode, ExpiredAt: existingLink.ExpiredAt}, nil
 		}
-		return entity.CreateShortLinkResponse{ShortCode: existingLink.ShortCode, ExpiredAt: existingLink.ExpiredAt}, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return entity.CreateShortLinkResponse{}, common.DBError{ErrorMsg: err}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return entity.CreateShortLinkResponse{}, common.DBError{ErrorMsg: err}
+		}
 	}
 
 	var isMalicious bool
+	var err error
 	if s.threatDetector != nil {
 		isMalicious, err = s.threatDetector.IsMaliciousURL(ctx, originalURL)
 		if err != nil {
@@ -114,32 +127,50 @@ func (s *shortLinkService) CreateShortLink(ctx context.Context, originalURL stri
 
 func (s *shortLinkService) GetShortLinkByCode(ctx context.Context, shortCode string) (string, error) {
 	var cached cachedShortLink
-	if s.redis != nil && s.redis.Get(ctx, cacheKeyPrefix+shortCode, &cached) == nil && cached.ExpiredAt != nil && time.Now().Before(*cached.ExpiredAt) {
-		if s.threatDetector != nil {
-			malicious, threatErr := s.threatDetector.IsMaliciousURL(ctx, cached.OriginalURL)
-			if threatErr != nil {
-				return "", fmt.Errorf("failed to check url threat: %w", threatErr)
-			}
-			if malicious {
-				_ = s.repo.MarkLinkAsMalicious(ctx, shortCode)
-				if s.redis != nil {
-					_ = s.redis.Delete(ctx, cacheKeyPrefix+shortCode)
-				}
-				return "", common.ValError{ErrorMsg: errors.New("short link is malicious")}
-			}
+	cacheHit := s.redis != nil && s.redis.Get(ctx, cacheKeyPrefix+shortCode, &cached) == nil && cached.ExpiredAt != nil && time.Now().Before(*cached.ExpiredAt)
+	if !cacheHit {
+		link, err := s.repo.GetShortLinkByCode(ctx, shortCode)
+		if err != nil {
+			return "", err
 		}
-		return cached.OriginalURL, nil
+		cached = cachedShortLink{OriginalURL: link.OriginalURL, ExpiredAt: link.ExpiredAt}
 	}
 
-	link, err := s.repo.GetShortLinkByCode(ctx, shortCode)
-	if err != nil {
+	if err := validateDestination(cached.OriginalURL); err != nil {
 		return "", err
 	}
-
-	if s.redis != nil && link.ExpiredAt != nil {
-		_ = s.redis.Set(ctx, cacheKeyPrefix+shortCode, cachedShortLink{OriginalURL: link.OriginalURL, ExpiredAt: link.ExpiredAt}, cacheDuration(link.ExpiredAt))
+	if s.threatDetector != nil {
+		malicious, err := s.threatDetector.IsMaliciousURL(ctx, cached.OriginalURL)
+		if err != nil {
+			return "", fmt.Errorf("failed to check url threat: %w", err)
+		}
+		if malicious {
+			if err := s.repo.MarkLinkAsMalicious(ctx, shortCode); err != nil {
+				log.Printf("short link malicious flag update failed: %v", err)
+			}
+			if s.redis != nil {
+				if err := s.redis.Delete(ctx, cacheKeyPrefix+shortCode); err != nil {
+					log.Printf("short link cache delete failed: %v", err)
+				}
+			}
+			return "", common.ValError{ErrorMsg: errors.New("short link is malicious")}
+		}
 	}
-	return link.OriginalURL, nil
+
+	if !cacheHit && s.redis != nil && cached.ExpiredAt != nil {
+		if err := s.redis.Set(ctx, cacheKeyPrefix+shortCode, cached, cacheDuration(cached.ExpiredAt)); err != nil {
+			log.Printf("short link cache set failed: %v", err)
+		}
+	}
+	return cached.OriginalURL, nil
+}
+
+func validateDestination(destination string) error {
+	parsed, err := url.Parse(destination)
+	if err != nil || parsed.Hostname() == "" || (!strings.EqualFold(parsed.Scheme, "http") && !strings.EqualFold(parsed.Scheme, "https")) {
+		return common.ValError{ErrorMsg: errors.New("original_url must be a valid HTTP or HTTPS URL with a host")}
+	}
+	return nil
 }
 
 func cacheDuration(expiredAt *time.Time) time.Duration {
