@@ -20,7 +20,7 @@ import (
 type CollectionRepository interface {
 	GetCollectionByID(ctx context.Context, id int) (collectionEntity.Collection, error)
 	GetCollectionList(ctx context.Context, filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
-	GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error)
+	GetCollectionShelves(ctx context.Context, req collectionEntity.CollectionShelvesRequest) (collectionEntity.CollectionShelvesResponse, error)
 	GetCollectionDrawer(ctx context.Context) (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error)
 	InvalidateCollectionFilterCache()
@@ -554,7 +554,7 @@ func (r *collectionRepository) GetCollectionList(ctx context.Context, filters co
 	return response, nil
 }
 
-func (r *collectionRepository) GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error) {
+func (r *collectionRepository) GetCollectionShelves(ctx context.Context, req collectionEntity.CollectionShelvesRequest) (collectionEntity.CollectionShelvesResponse, error) {
 	startedAt := time.Now()
 	defer func() {
 		log.Printf("[repo.collection.shelves] duration=%s", time.Since(startedAt))
@@ -563,30 +563,34 @@ func (r *collectionRepository) GetCollectionShelves(ctx context.Context) (collec
 	const shelfLimit = 6
 
 	type shelfQuery struct {
-		name  string
-		id    int
-		where string
-		args  []any
+		category string
+		name     string
+		id       int
+		where    string
+		args     []any
 	}
 
 	queries := []shelfQuery{
 		{
-			name:  "Gunpla",
-			id:    collectionTypeGunplaID,
-			where: "ct.id = ? AND CAST(c.status AS int) <> ?",
-			args:  []any{collectionTypeGunplaID, collectionEntity.Backlog},
+			name:     "Gunpla",
+			category: "gunpla",
+			id:       collectionTypeGunplaID,
+			where:    "ct.id = ? AND CAST(c.status AS int) <> ?",
+			args:     []any{collectionTypeGunplaID, collectionEntity.Backlog},
 		},
 		{
-			name:  "Figure",
-			id:    collectionTypeFiguresID,
-			where: "ct.id = ? AND CAST(c.status AS int) <> ?",
-			args:  []any{collectionTypeFiguresID, collectionEntity.Backlog},
+			name:     "Figure",
+			category: "figure",
+			id:       collectionTypeFiguresID,
+			where:    "ct.id = ? AND CAST(c.status AS int) <> ?",
+			args:     []any{collectionTypeFiguresID, collectionEntity.Backlog},
 		},
 		{
-			name:  "Other Model Kit",
-			id:    0,
-			where: "ct.id NOT IN ? AND CAST(c.status AS int) <> ?",
-			args:  []any{[]int{collectionTypeFiguresID, collectionTypeGunplaID}, collectionEntity.Backlog},
+			name:     "Other Model Kit",
+			category: "other-model-kit",
+			id:       0,
+			where:    "ct.id NOT IN ? AND CAST(c.status AS int) <> ?",
+			args:     []any{[]int{collectionTypeFiguresID, collectionTypeGunplaID}, collectionEntity.Backlog},
 		},
 		{
 			name:  "Backlog",
@@ -607,9 +611,19 @@ func (r *collectionRepository) GetCollectionShelves(ctx context.Context) (collec
 			defer wg.Done()
 
 			rows := []collectionListItemRow{}
+			limit, offset := shelfLimit, 0
+			if req.Category != "" && req.Category == shelf.category {
+				limit, offset = req.Limit, req.Offset
+			}
+			baseQuery := func() *gorm.DB {
+				return r.db.WithContext(ctx).Table("collections c").
+					Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
+					Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
+					Joins("LEFT JOIN scales sc ON sc.id = c.scale_id AND sc.deleted_at IS NULL").
+					Where("c.deleted_at IS NULL").Where(shelf.where, shelf.args...)
+			}
 			queryStartedAt := time.Now()
-			result := r.db.WithContext(ctx).
-				Table("collections c").
+			result := baseQuery().
 				Select(`
 					c.id,
 					c.title,
@@ -625,14 +639,9 @@ func (r *collectionRepository) GetCollectionShelves(ctx context.Context) (collec
 					sc.name as scale_name,
 					COUNT(*) OVER() AS total_count
 				`).
-				Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
-				Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
-				Joins("LEFT JOIN scales sc ON sc.id = c.scale_id AND sc.deleted_at IS NULL").
-				Where("c.deleted_at IS NULL").
-				Where(shelf.where, shelf.args...).
 				Order("COALESCE(c.built_at, c.acquired_at, c.created_at) DESC NULLS LAST").
 				Order("c.id DESC").
-				Limit(shelfLimit).
+				Limit(limit).Offset(offset).
 				Scan(&rows)
 			log.Printf("[repo.collection.shelves.query] shelf=%q duration=%s rows=%d err=%v", shelf.name, time.Since(queryStartedAt), len(rows), result.Error)
 			if result.Error != nil {
@@ -645,6 +654,16 @@ func (r *collectionRepository) GetCollectionShelves(ctx context.Context) (collec
 			var total int
 			if len(rows) > 0 {
 				total = rows[0].TotalCount
+			} else if offset > 0 {
+				// A window count has no row to carry it on an empty terminal page.
+				var count int64
+				if err := baseQuery().Count(&count).Error; err != nil {
+					queryErrMu.Lock()
+					queryErrs = append(queryErrs, wrapErr("count "+shelf.name+" shelf", err))
+					queryErrMu.Unlock()
+					return
+				}
+				total = int(count)
 			}
 
 			shelves[index] = collectionEntity.CollectionShelfResponse{

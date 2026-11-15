@@ -91,3 +91,10 @@ type CollectionFilterRequest struct {
 	Limit            int               `form:"limit"`
 	Offset           int               `form:"offset"`
 }
+
+// CollectionShelvesRequest selects a category page. An empty category selects previews.
+type CollectionShelvesRequest struct {
+	Category string
+	Limit    int
+	Offset   int
+}

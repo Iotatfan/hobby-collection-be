@@ -28,7 +28,7 @@ import (
 type CollectionService interface {
 	GetCollectionByID(ctx context.Context, id int) (collectionEntity.CollectionDetailResponse, error)
 	GetCollectionList(ctx context.Context, filters collectionEntity.CollectionFilterRequest) (collectionEntity.CollectionListResponse, error)
-	GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error)
+	GetCollectionShelves(ctx context.Context, req collectionEntity.CollectionShelvesRequest) (collectionEntity.CollectionShelvesResponse, error)
 	GetCollectionDrawer(ctx context.Context) (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error)
 	GetCollectionStatistics(ctx context.Context) (collectionEntity.StatisticResponse, error)
@@ -47,7 +47,14 @@ type CollectionService interface {
 type collectionService struct {
 	collectionRepo collectionRepository.CollectionRepository
 	cld            *cloudinary.Cloudinary
-	redis          *cache.RedisCache
+	redis          collectionCache
+}
+
+type collectionCache interface {
+	Get(context.Context, string, any) error
+	Set(context.Context, string, interface{}, time.Duration) error
+	Delete(context.Context, ...string) error
+	DeleteByPattern(context.Context, string) error
 }
 
 const (
@@ -225,21 +232,29 @@ func (s *collectionService) GetCollectionList(ctx context.Context, filters colle
 	return resp, nil
 }
 
-func (s *collectionService) GetCollectionShelves(ctx context.Context) (collectionEntity.CollectionShelvesResponse, error) {
+func (s *collectionService) GetCollectionShelves(ctx context.Context, req collectionEntity.CollectionShelvesRequest) (collectionEntity.CollectionShelvesResponse, error) {
 	var resp collectionEntity.CollectionShelvesResponse
-	err := s.redis.Get(ctx, cacheKeyCollectionShelves, &resp)
+	key := buildShelvesCacheKey(req)
+	err := s.redis.Get(ctx, key, &resp)
 	if err == nil {
 		return resp, nil
 	}
 
-	resp, err = s.collectionRepo.GetCollectionShelves(ctx)
+	resp, err = s.collectionRepo.GetCollectionShelves(ctx, req)
 	if err != nil {
 		return collectionEntity.CollectionShelvesResponse{}, err
 	}
 
-	_ = s.redis.Set(ctx, cacheKeyCollectionShelves, resp, cacheTTLCollectionShelves)
+	_ = s.redis.Set(ctx, key, resp, cacheTTLCollectionShelves)
 
 	return resp, nil
+}
+
+func buildShelvesCacheKey(req collectionEntity.CollectionShelvesRequest) string {
+	if req.Category == "" {
+		return cacheKeyCollectionShelves
+	}
+	return fmt.Sprintf("%s:category=%s:limit=%d:offset=%d", cacheKeyCollectionShelves, req.Category, req.Limit, req.Offset)
 }
 
 func (s *collectionService) GetCollectionDrawer(ctx context.Context) (collectionEntity.CollectionDrawerResponse, error) {
@@ -1004,6 +1019,9 @@ func (s *collectionService) invalidateCollectionCaches(ctx context.Context, id i
 	}
 	if err := s.redis.DeleteByPattern(ctx, cacheKeyCollectionListPrefix); err != nil {
 		log.Printf("[cache] failed to invalidate collection list caches: %v", err)
+	}
+	if err := s.redis.DeleteByPattern(ctx, cacheKeyCollectionShelves+":*"); err != nil {
+		log.Printf("[cache] failed to invalidate collection shelf pages: %v", err)
 	}
 	s.collectionRepo.InvalidateCollectionFilterCache()
 }

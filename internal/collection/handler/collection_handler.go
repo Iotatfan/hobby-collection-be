@@ -6,6 +6,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -159,12 +160,59 @@ func (h *CollectionHandler) GetCollectionShelves(c *gin.Context) {
 		log.Printf("[http] path=%s method=%s duration=%s status=%d", c.FullPath(), c.Request.Method, time.Since(startedAt), c.Writer.Status())
 	}()
 
-	result, err := h.collectionService.GetCollectionShelves(c.Request.Context())
+	req, err := parseCollectionShelvesQuery(c)
+	if err != nil {
+		common.ErrorResponse(c, err)
+		return
+	}
+	result, err := h.collectionService.GetCollectionShelves(c.Request.Context(), req)
 	if err != nil {
 		common.ErrorResponse(c, err)
 		return
 	}
 	common.SuccessResponse(c, result, http.StatusOK)
+}
+
+func parseCollectionShelvesQuery(c *gin.Context) (entity.CollectionShelvesRequest, error) {
+	var req entity.CollectionShelvesRequest
+	query, err := url.ParseQuery(c.Request.URL.RawQuery)
+	if err != nil {
+		return req, common.ValError{ErrorMsg: errors.New("invalid shelf query encoding")}
+	}
+	_, hasCategory := query["category"]
+	_, hasLimit := query["limit"]
+	_, hasOffset := query["offset"]
+	invalid := func(message string) (entity.CollectionShelvesRequest, error) {
+		return entity.CollectionShelvesRequest{}, common.ValError{ErrorMsg: errors.New(message)}
+	}
+	if !hasCategory {
+		if hasLimit || hasOffset {
+			return invalid("category is required for shelf pagination")
+		}
+		return req, nil
+	}
+	req.Category = query.Get("category")
+	switch req.Category {
+	case "gunpla", "figure", "other-model-kit":
+	default:
+		return invalid("category must be gunpla, figure, or other-model-kit")
+	}
+	req.Limit = 12
+	if hasLimit {
+		value, err := strconv.Atoi(query.Get("limit"))
+		if err != nil || value < 1 || value > 100 {
+			return invalid("limit must be an integer between 1 and 100")
+		}
+		req.Limit = value
+	}
+	if hasOffset {
+		value, err := strconv.Atoi(query.Get("offset"))
+		if err != nil || value < 0 {
+			return invalid("offset must be a nonnegative integer")
+		}
+		req.Offset = value
+	}
+	return req, nil
 }
 
 func (h *CollectionHandler) GetCollectionDrawer(c *gin.Context) {
