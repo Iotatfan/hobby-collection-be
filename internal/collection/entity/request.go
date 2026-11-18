@@ -92,9 +92,15 @@ type CollectionFilterRequest struct {
 	Offset           int               `form:"offset"`
 }
 
-// CollectionShelvesRequest selects a category page. An empty category selects previews.
+// CollectionShelvesRequest filters and pages one category. Other shelves retain previews.
 type CollectionShelvesRequest struct {
-	Category string
-	Limit    int
-	Offset   int
+	Category         string `form:"-"`
+	Limit            int    `form:"-"`
+	Offset           int    `form:"-"`
+	CollectionTypeID int    `form:"collection_type_id"`
+	GradeID          int    `form:"grade_id"`
+	ScaleID          int    `form:"scale_id"`
+	ReleaseTypeIDs   []int  `form:"release_type_id"`
+	ManufacturerID   int    `form:"manufacturer_id"`
+	SeriesID         int    `form:"series_id"`
 }

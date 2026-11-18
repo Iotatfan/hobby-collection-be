@@ -189,6 +189,11 @@ func parseCollectionShelvesQuery(c *gin.Context) (entity.CollectionShelvesReques
 		if hasLimit || hasOffset {
 			return invalid("category is required for shelf pagination")
 		}
+		for _, key := range []string{"collection_type_id", "grade_id", "scale_id", "release_type_id", "release_type_ids", "manufacturer_id", "series_id"} {
+			if _, present := query[key]; present {
+				return invalid("category is required for shelf filtering")
+			}
+		}
 		return req, nil
 	}
 	req.Category = query.Get("category")
@@ -196,6 +201,16 @@ func parseCollectionShelvesQuery(c *gin.Context) (entity.CollectionShelvesReques
 	case "gunpla", "figure", "other-model-kit":
 	default:
 		return invalid("category must be gunpla, figure, or other-model-kit")
+	}
+	if err := c.ShouldBindQuery(&req); err != nil {
+		return invalid("shelf filters must contain integer IDs")
+	}
+	releaseTypeIDs, present, err := parseFlexibleIntQueryArray(c, "release_type_id", "release_type_ids")
+	if err != nil {
+		return invalid("release types must contain integer IDs")
+	}
+	if present {
+		req.ReleaseTypeIDs = releaseTypeIDs
 	}
 	req.Limit = 12
 	if hasLimit {
@@ -230,6 +245,19 @@ func (h *CollectionHandler) GetCollectionFilter(c *gin.Context) {
 		log.Printf("[http] path=%s method=%s duration=%s status=%d", c.FullPath(), c.Request.Method, time.Since(startedAt), c.Writer.Status())
 	}()
 
+	if category, present := c.Request.URL.Query()["category"]; present {
+		if len(category) != 1 || (category[0] != "gunpla" && category[0] != "figure" && category[0] != "other-model-kit") {
+			common.ErrorResponse(c, common.ValError{ErrorMsg: errors.New("category must be gunpla, figure, or other-model-kit")})
+			return
+		}
+		result, err := h.collectionService.GetCategoryFilters(c.Request.Context(), category[0])
+		if err != nil {
+			common.ErrorResponse(c, err)
+			return
+		}
+		common.SuccessResponse(c, result, http.StatusOK)
+		return
+	}
 	result, err := h.collectionService.GetCollectionFilter(c.Request.Context())
 	if err != nil {
 		common.ErrorResponse(c, err)

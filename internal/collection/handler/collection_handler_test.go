@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,14 @@ func TestGetCollectionShelves(t *testing.T) {
 		bad         bool
 	}{
 		{name: "preview"},
+		{name: "all filters", query: "category=gunpla&collection_type_id=2&grade_id=3&scale_id=4&release_type_id=2&release_type_id=3&release_type_ids=9&manufacturer_id=5&series_id=6", want: entity.CollectionShelvesRequest{Category: "gunpla", Limit: 12, CollectionTypeID: 2, GradeID: 3, ScaleID: 4, ReleaseTypeIDs: []int{2, 3}, ManufacturerID: 5, SeriesID: 6}},
+		{name: "release alias", query: "category=figure&release_type_ids=2&release_type_ids=3", want: entity.CollectionShelvesRequest{Category: "figure", Limit: 12, ReleaseTypeIDs: []int{2, 3}}},
+		{name: "inactive IDs", query: "category=gunpla&grade_id=-1&scale_id=0", want: entity.CollectionShelvesRequest{Category: "gunpla", Limit: 12, GradeID: -1}},
+		{name: "filter without category", query: "manufacturer_id=2", bad: true},
+		{name: "empty filter without category", query: "series_id=", bad: true},
+		{name: "bad filter", query: "category=gunpla&grade_id=x", bad: true},
+		{name: "bad release alias", query: "category=gunpla&release_type_ids=x", bad: true},
+		{name: "bad release", query: "category=gunpla&release_type_id=x", bad: true},
 		{name: "gunpla defaults", query: "category=gunpla", want: entity.CollectionShelvesRequest{Category: "gunpla", Limit: 12}},
 		{name: "gunpla explicit defaults", query: "category=gunpla&limit=12&offset=0", want: entity.CollectionShelvesRequest{Category: "gunpla", Limit: 12}},
 		{name: "figure", query: "category=figure&limit=12&offset=12", want: entity.CollectionShelvesRequest{Category: "figure", Limit: 12, Offset: 12}},
@@ -68,7 +77,7 @@ func TestGetCollectionShelves(t *testing.T) {
 				}
 				return
 			}
-			if w.Code != 200 || !stub.called || stub.request != tc.want {
+			if w.Code != 200 || !stub.called || !reflect.DeepEqual(stub.request, tc.want) {
 				t.Fatalf("status=%d request=%+v want=%+v", w.Code, stub.request, tc.want)
 			}
 			var body struct {

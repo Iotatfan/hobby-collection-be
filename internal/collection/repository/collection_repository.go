@@ -23,6 +23,7 @@ type CollectionRepository interface {
 	GetCollectionShelves(ctx context.Context, req collectionEntity.CollectionShelvesRequest) (collectionEntity.CollectionShelvesResponse, error)
 	GetCollectionDrawer(ctx context.Context) (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error)
+	GetCategoryFilters(ctx context.Context, category string) (collectionEntity.CategoryFilterResponse, error)
 	InvalidateCollectionFilterCache()
 	GetPicturesByCollectionID(ctx context.Context, id int) ([]collectionEntity.Picture, error)
 	GetAddonsByCollectionID(ctx context.Context, id int) ([]collectionEntity.Addon, error)
@@ -616,11 +617,32 @@ func (r *collectionRepository) GetCollectionShelves(ctx context.Context, req col
 				limit, offset = req.Limit, req.Offset
 			}
 			baseQuery := func() *gorm.DB {
-				return r.db.WithContext(ctx).Table("collections c").
+				db := r.db.WithContext(ctx).Table("collections c").
 					Joins("JOIN grades g ON g.id = c.grade_id AND g.deleted_at IS NULL").
 					Joins("JOIN collection_types ct ON ct.id = g.collection_type_id AND ct.deleted_at IS NULL").
 					Joins("LEFT JOIN scales sc ON sc.id = c.scale_id AND sc.deleted_at IS NULL").
 					Where("c.deleted_at IS NULL").Where(shelf.where, shelf.args...)
+				if req.Category != "" && req.Category == shelf.category {
+					if req.CollectionTypeID > 0 {
+						db = db.Where("g.collection_type_id = ?", req.CollectionTypeID)
+					}
+					if req.GradeID > 0 {
+						db = db.Where("c.grade_id = ?", req.GradeID)
+					}
+					if req.ScaleID > 0 {
+						db = db.Where("c.scale_id = ?", req.ScaleID)
+					}
+					if req.ManufacturerID > 0 {
+						db = db.Where("c.manufacturer = ?", req.ManufacturerID)
+					}
+					if req.SeriesID > 0 {
+						db = db.Where("c.series_id = ?", req.SeriesID)
+					}
+					if len(req.ReleaseTypeIDs) > 0 {
+						db = db.Where("c.release_type IN ?", req.ReleaseTypeIDs)
+					}
+				}
+				return db
 			}
 			queryStartedAt := time.Now()
 			result := baseQuery().

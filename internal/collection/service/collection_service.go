@@ -31,6 +31,7 @@ type CollectionService interface {
 	GetCollectionShelves(ctx context.Context, req collectionEntity.CollectionShelvesRequest) (collectionEntity.CollectionShelvesResponse, error)
 	GetCollectionDrawer(ctx context.Context) (collectionEntity.CollectionDrawerResponse, error)
 	GetCollectionFilter(ctx context.Context) (collectionEntity.CollectionFilterResponse, error)
+	GetCategoryFilters(ctx context.Context, category string) (collectionEntity.CategoryFilterResponse, error)
 	GetCollectionStatistics(ctx context.Context) (collectionEntity.StatisticResponse, error)
 	UploadCollection(ctx context.Context, payload collectionEntity.UploadCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
 	UpdateCollection(ctx context.Context, id int, payload collectionEntity.UpdateCollectionRequest) (collectionEntity.CollectionDetailResponse, error)
@@ -45,9 +46,11 @@ type CollectionService interface {
 }
 
 type collectionService struct {
-	collectionRepo collectionRepository.CollectionRepository
-	cld            *cloudinary.Cloudinary
-	redis          collectionCache
+	filterCacheMu    sync.Mutex
+	filterGeneration uint64
+	collectionRepo   collectionRepository.CollectionRepository
+	cld              *cloudinary.Cloudinary
+	redis            collectionCache
 }
 
 type collectionCache interface {
@@ -204,9 +207,12 @@ func requireCatalogName(value string) error {
 }
 
 func (s *collectionService) invalidateCatalogCaches(ctx context.Context) {
+	s.filterCacheMu.Lock()
+	defer s.filterCacheMu.Unlock()
+	s.filterGeneration++
 	s.collectionRepo.InvalidateCollectionFilterCache()
 	if s.redis != nil {
-		if err := s.redis.Delete(ctx, cacheKeyCollectionFilter); err != nil {
+		if err := s.redis.Delete(ctx, cacheKeyCollectionFilter, cacheKeyCollectionFilter+":gunpla", cacheKeyCollectionFilter+":figure", cacheKeyCollectionFilter+":other-model-kit"); err != nil {
 			log.Printf("[cache] failed to invalidate collection filter cache: %v", err)
 		}
 	}
@@ -254,7 +260,16 @@ func buildShelvesCacheKey(req collectionEntity.CollectionShelvesRequest) string 
 	if req.Category == "" {
 		return cacheKeyCollectionShelves
 	}
-	return fmt.Sprintf("%s:category=%s:limit=%d:offset=%d", cacheKeyCollectionShelves, req.Category, req.Limit, req.Offset)
+	key := fmt.Sprintf("%s:category=%s:limit=%d:offset=%d", cacheKeyCollectionShelves, req.Category, req.Limit, req.Offset)
+	if req.CollectionTypeID <= 0 && req.GradeID <= 0 && req.ScaleID <= 0 && len(req.ReleaseTypeIDs) == 0 && req.ManufacturerID <= 0 && req.SeriesID <= 0 {
+		return key
+	}
+	releaseTypeIDs := slices.Clone(req.ReleaseTypeIDs)
+	slices.Sort(releaseTypeIDs)
+	releaseTypeIDs = slices.Compact(releaseTypeIDs)
+	return fmt.Sprintf("%s:type=%d:grade=%d:scale=%d:release=%v:manufacturer=%d:series=%d", key,
+		max(req.CollectionTypeID, 0), max(req.GradeID, 0), max(req.ScaleID, 0), releaseTypeIDs,
+		max(req.ManufacturerID, 0), max(req.SeriesID, 0))
 }
 
 func (s *collectionService) GetCollectionDrawer(ctx context.Context) (collectionEntity.CollectionDrawerResponse, error) {
@@ -1023,7 +1038,7 @@ func (s *collectionService) invalidateCollectionCaches(ctx context.Context, id i
 	if err := s.redis.DeleteByPattern(ctx, cacheKeyCollectionShelves+":*"); err != nil {
 		log.Printf("[cache] failed to invalidate collection shelf pages: %v", err)
 	}
-	s.collectionRepo.InvalidateCollectionFilterCache()
+	s.invalidateCatalogCaches(ctx)
 }
 
 func builCacheKey(req collectionEntity.CollectionFilterRequest) string {

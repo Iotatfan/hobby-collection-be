@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path"
+	"reflect"
 	"testing"
 	"time"
 
@@ -78,6 +79,12 @@ func TestGetCollectionShelvesCache(t *testing.T) {
 		{Category: "other-model-kit", Limit: 12},
 		{Category: "gunpla", Limit: 6},
 		{Category: "gunpla", Limit: 12, Offset: 12},
+		{Category: "gunpla", Limit: 12, CollectionTypeID: 2},
+		{Category: "gunpla", Limit: 12, GradeID: 3},
+		{Category: "gunpla", Limit: 12, ScaleID: 4},
+		{Category: "gunpla", Limit: 12, ReleaseTypeIDs: []int{2, 3}},
+		{Category: "gunpla", Limit: 12, ManufacturerID: 5},
+		{Category: "gunpla", Limit: 12, SeriesID: 6},
 	}
 	for _, req := range requests {
 		resp, err := s.GetCollectionShelves(ctx, req)
@@ -129,5 +136,17 @@ func TestGetCollectionShelvesCacheUnavailable(t *testing.T) {
 	resp, err := s.GetCollectionShelves(context.Background(), entity.CollectionShelvesRequest{Category: "gunpla", Limit: 12})
 	if err != nil || resp.GunplaShelf.Count != 12 || repo.calls != 1 {
 		t.Fatalf("response=%+v calls=%d err=%v", resp, repo.calls, err)
+	}
+}
+
+func TestShelvesCacheReleaseSet(t *testing.T) {
+	req := entity.CollectionShelvesRequest{Category: "gunpla", Limit: 12, ReleaseTypeIDs: []int{3, 2, 3}}
+	original := append([]int(nil), req.ReleaseTypeIDs...)
+	equivalent := entity.CollectionShelvesRequest{Category: "gunpla", Limit: 12, ReleaseTypeIDs: []int{2, 3}}
+	if buildShelvesCacheKey(req) != buildShelvesCacheKey(equivalent) {
+		t.Fatal("equivalent release filters have different keys")
+	}
+	if !reflect.DeepEqual(req.ReleaseTypeIDs, original) {
+		t.Fatal("cache key mutated request")
 	}
 }

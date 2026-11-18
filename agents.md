@@ -1,60 +1,29 @@
-# Hobby Collection - Backend
+# Hobby Collection Backend: Agent Guidance
 
-## Stack
-- Language: Go
-- Framework: Gin
-- ORM: GORM
-- Database: PostgreSQL
-- Architecture: Clean Architecture (entity → repository → service → handler)
+## Start here
 
-## Project Structure
-- `cmd/app/` — main entry point
-- `cmd/migrate/` — database migration entry point
-- `internal/collection/` — collection domain
-  - `entity/` — structs and response types
-  - `repository/` — DB queries via GORM
-  - `service/` — business logic
-  - `handler/` — HTTP handlers (Gin)
+This Go HTTP API uses Gin, GORM, PostgreSQL, Redis, and Cloudinary. Collection and shortlink features use handler, service, repository, and entity packages; admin token issuance has a smaller handler-based module.
 
-## Conventions
-- Always pass `context.Context` as the first param in service/repo methods
-- Use `response.go` structs for all API responses
-- Errors should be returned, not panicked
-- SQL filters use GORM's raw query with `?` placeholders
+Read this file and the [workflow guide](.agents/workflow.md) before starting work. Read the relevant supporting guides before changing a subsystem; do not assume linked files are automatically loaded.
 
-## DB Migration
-- Migration script is located in `cmd/migrate/main.go`
-- Run `go run cmd/migrate/main.go` to apply migrations
-- Use proper logging for all migration steps
+| Task | Read |
+| --- | --- |
+| Locate code or change domain logic and persistence | [Architecture and conventions](.agents/architecture.md) |
+| Change routes, authentication, binding, or responses | [HTTP API guidance](.agents/api.md) |
+| Configure, run, migrate, test, or change caching and integrations | [Development and validation](.agents/development.md) |
+| Delegate exploration, investigate, or review changes | [Agent workflow](.agents/workflow.md) |
 
-## Entity Layer
-- Structs are defined in `internal/collection/entity/`
-- `collection.go` contains main collection entity
-- `request.go` contains request DTOs
-- `response.go` contains API response structs
-- `filter.go` contains filter parameters
+## Essential conventions
 
-## Repository Layer
-- Methods defined in `internal/collection/repository/repository.go`
-- Use GORM's `db.Where().Order().Limit().Offset().Find()` for queries
-- Use `db.Create()`, `db.Save()`, `db.Delete()` for modifications
-- Return `(entity.Collection, error)` or `([]entity.Collection, error)`
+- Pass `context.Context` first in service/repository I/O operations, starting with `c.Request.Context()` in handlers. Pure helpers and in-memory cache invalidation do not need a synthetic context.
+- Keep HTTP binding in handlers, business rules in services, and database queries in repositories. Follow existing interfaces and module wiring.
+- Use request/response DTOs with explicit JSON/form tags. Preserve existing response shapes, including shortlink exceptions.
+- Return request-processing errors rather than panicking. Use shared error types and response helpers where the endpoint does.
+- Bind SQL values with GORM `?` placeholders; choose dynamic ordering from fixed supported choices.
+- Review cache invalidation when changing collection writes, catalogs, filters, or pagination.
+- Keep credentials out of source, documentation, and logs. Use `config.example.yml` to document configuration.
+- Preserve unrelated working-tree changes. Validate in proportion to the change and report checks that could not run.
 
-## Service Layer
-- Methods defined in `internal/collection/service/service.go`
-- Business logic goes here
-- Map request DTOs to entity structs
-- Call repository methods and handle errors
-- Return appropriate response DTOs
+## Documentation maintenance
 
-## Handler Layer
-- HTTP handlers in `internal/collection/handler/handler.go`
-- Grouped under `/collections` route
-- Use Gin's `c.BindJSON()`, `c.BindQuery()`
-- Return JSON responses with `response.ApiResponse`
-- Handle pagination using `limit`, `offset` query params
-
-## Request/Response Mapping
-- `request.go` contains DTOs that match API request format
-- `response.go` contains DTOs that match API response format
-- Handlers map between request DTOs, entities, and response DTOs
+Update the relevant guide when behavior, configuration, commands, or architecture changes. Verify claims against source and distinguish current behavior from instructions for new changes. Keep this entry point short. Do not normalize public contracts as incidental cleanup.

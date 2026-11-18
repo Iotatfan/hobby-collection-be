@@ -35,7 +35,7 @@ func TestGetCollectionShelves(t *testing.T) {
 		`CREATE TEMP TABLE collection_types (id int PRIMARY KEY, name text, deleted_at timestamptz)`,
 		`CREATE TEMP TABLE grades (id int PRIMARY KEY, name text, short_name text, collection_type_id int, deleted_at timestamptz)`,
 		`CREATE TEMP TABLE scales (id int PRIMARY KEY, name text, deleted_at timestamptz)`,
-		`CREATE TEMP TABLE collections (id int PRIMARY KEY, title text, status text, cover text, display_size text, grade_id int, scale_id int, built_at timestamptz, acquired_at timestamptz, created_at timestamptz, deleted_at timestamptz)`,
+		`CREATE TEMP TABLE collections (id int PRIMARY KEY, title text, status text, cover text, display_size text, grade_id int, scale_id int, release_type int, manufacturer int, series_id int, built_at timestamptz, acquired_at timestamptz, created_at timestamptz, deleted_at timestamptz)`,
 		`INSERT INTO collection_types VALUES (1,'Figure',NULL),(2,'Gunpla',NULL),(3,'Other',NULL),(4,'Another',NULL),(5,'Deleted',now())`,
 		`INSERT INTO grades VALUES (1,'Figure','F',1,NULL),(2,'Gunpla','G',2,NULL),(3,'Other','O',3,NULL),(4,'Another','A',4,NULL),(5,'Deleted type','D',5,NULL),(6,'Deleted grade','D',2,now())`,
 		`INSERT INTO scales VALUES (1,'Scale',NULL),(2,'Deleted',now())`,
@@ -108,9 +108,79 @@ func TestGetCollectionShelves(t *testing.T) {
 			})
 		}
 	}
+
+	t.Run("category filters", func(t *testing.T) {
+		if err := db.Exec("UPDATE collections SET release_type=2, manufacturer=7, series_id=8 WHERE id IN (201,202,901)").Error; err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			name  string
+			req   entity.CollectionShelvesRequest
+			ids   []int
+			count int
+		}{
+			{"release set", entity.CollectionShelvesRequest{ReleaseTypeIDs: []int{2, 3}}, []int{201, 202}, 2},
+			{"manufacturer", entity.CollectionShelvesRequest{ManufacturerID: 7}, []int{201, 202}, 2},
+			{"series", entity.CollectionShelvesRequest{SeriesID: 8}, []int{201, 202}, 2},
+			{"grade", entity.CollectionShelvesRequest{GradeID: 2}, gunpla[:12], 15},
+			{"scale", entity.CollectionShelvesRequest{ScaleID: 2}, []int{203}, 1},
+			{"conflicting type", entity.CollectionShelvesRequest{CollectionTypeID: 1}, []int{}, 0},
+			{"combined", entity.CollectionShelvesRequest{CollectionTypeID: 2, GradeID: 2, ScaleID: 1, ReleaseTypeIDs: []int{2}, ManufacturerID: 7, SeriesID: 8}, []int{201, 202}, 2},
+			{"no matches", entity.CollectionShelvesRequest{SeriesID: 999}, []int{}, 0},
+			{"terminal page", entity.CollectionShelvesRequest{ManufacturerID: 7, Offset: 12}, []int{}, 2},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				tc.req.Category, tc.req.Limit = "gunpla", 12
+				resp, err := repo.GetCollectionShelves(context.Background(), tc.req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				check(t, resp.GunplaShelf, tc.ids, tc.count)
+				check(t, resp.FigureShelf, figure[:6], 15)
+				check(t, resp.OtherModelKitShelf, other[:6], 30)
+				check(t, resp.BacklogShelf, []int{906, 905, 901}, 3)
+			})
+		}
+	})
+	t.Run("category metadata", func(t *testing.T) {
+		for _, statement := range []string{
+			`CREATE TEMP TABLE release_types (id int PRIMARY KEY, name text, deleted_at timestamptz)`,
+			`CREATE TEMP TABLE manufacturers (id int PRIMARY KEY, name text, deleted_at timestamptz)`,
+			`CREATE TEMP TABLE series (id int PRIMARY KEY, name text, deleted_at timestamptz)`,
+			`INSERT INTO release_types VALUES (1,'Regular',NULL),(2,'Deleted',now()),(3,'Backlog only',NULL),(4,'Unused',NULL)`,
+			`INSERT INTO manufacturers VALUES (1,'Brand',NULL),(2,'Backlog only',NULL),(3,'Unused',NULL)`,
+			`INSERT INTO series VALUES (1,'Late page series',NULL),(2,'Backlog only',NULL),(3,'Unused',NULL)`,
+			`UPDATE collections SET release_type=1, series_id=1 WHERE id=204`,
+			`UPDATE collections SET release_type=2 WHERE id=202`,
+			`UPDATE collections SET release_type=3, series_id=2, manufacturer=2 WHERE id IN (901,905,906,902)`,
+			`UPDATE collections SET manufacturer=1, series_id=1 WHERE id IN (101,301,401)`,
+		} {
+			if err := db.Exec(statement).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+		gunpla, err := repo.GetCategoryFilters(context.Background(), "gunpla")
+		if err != nil || gunpla.TotalCount != 15 || len(gunpla.Grades) != 1 || len(gunpla.ReleaseTypes) != 1 || gunpla.ReleaseTypes[0].ID != 1 || len(gunpla.Series) != 1 || gunpla.Series[0].ID != 1 {
+			t.Fatalf("gunpla=%+v err=%v", gunpla, err)
+		}
+		for _, category := range []string{"figure", "other-model-kit"} {
+			options, err := repo.GetCategoryFilters(context.Background(), category)
+			wantCount := int64(15)
+			if category == "other-model-kit" {
+				wantCount = 30
+			}
+			if err != nil || options.TotalCount != wantCount || len(options.Scales) != 1 || len(options.Manufacturers) != 1 || options.Manufacturers[0].ID != 1 || len(options.Series) != 1 {
+				t.Fatalf("category=%s options=%+v err=%v", category, options, err)
+			}
+		}
+	})
 	t.Run("empty category", func(t *testing.T) {
 		if err := db.Exec("DELETE FROM collections WHERE grade_id IN (3,4)").Error; err != nil {
 			t.Fatal(err)
+		}
+		options, err := repo.GetCategoryFilters(context.Background(), "other-model-kit")
+		if err != nil || options.TotalCount != 0 || options.Series == nil || len(options.Series) != 0 || len(options.Scales) != 0 || len(options.Manufacturers) != 0 {
+			t.Fatalf("empty options=%+v err=%v", options, err)
 		}
 		for _, offset := range []int{0, 12} {
 			resp, err := repo.GetCollectionShelves(context.Background(), entity.CollectionShelvesRequest{Category: "other-model-kit", Limit: 12, Offset: offset})
